@@ -59,6 +59,9 @@ input[type="color"]{height:46px;padding:4px}
 select{display:block;width:100%;margin:6px 0 14px;padding:11px 12px;font:inherit;color:var(--tx);background:var(--in);border:1px solid var(--bd);border-radius:12px}
 #sp input,#sp textarea,#car textarea{margin-bottom:8px}
 #cvi{width:100%;max-height:320px;object-fit:cover;border-radius:18px;margin-bottom:14px}
+#ap [id]{scroll-margin-top:60px}
+#nav{scrollbar-width:none}
+#cl summary{list-style-position:inside}
 [hidden]{display:none!important}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -113,6 +116,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label>Fecha en que empezaron<input id="d" type="date"></label>
 <label>Lugar donde todo empezó<input id="pl" maxlength="80" placeholder="Ciudad o lugar"></label>
 <label>Foto de portada<input id="cvf" type="file" accept="image/*"></label>
+<label>Archivo de su canción (MP3, para reproducir aquí)<input id="sfl" type="file" accept="audio/*"></label>
 <label>Su canción (nombre y artista)<input id="sn" maxlength="160"></label>
 <label>Enlace de Spotify o YouTube<input id="sl" type="url" maxlength="300" placeholder="https://open.spotify.com/…"></label>
 <div class="mut" style="margin:4px 0 8px">Tema de colores</div>
@@ -125,6 +129,12 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <button class="btn" id="ps">Guardar</button>
 </div>
 </div>
+<div id="nav" style="display:flex;gap:8px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 8px;margin-top:8px"></div>
+<div class="card" id="calc">
+<h2>Calendario de momentos</h2>
+<input id="cq" placeholder="Buscar por nombre…" style="margin-bottom:10px">
+<div id="cl"></div>
+</div>
 <div class="card" id="gcard">
 <h2>Momentos que no se borran</h2>
 <div id="gl"></div>
@@ -134,7 +144,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <p class="mut" id="gs" style="margin:10px 0 0"></p>
 </div>
 <div class="card" id="car"></div>
-<div class="card">
+<div class="card" id="vcard">
 <h2>Mensajes de voz</h2>
 <div id="vl"></div>
 <label style="margin-top:10px">De parte de<select id="vd"></select></label>
@@ -142,11 +152,13 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <p class="mut" id="vs" style="margin:10px 0 0"></p>
 </div>
 <div class="card" id="sp"></div>
-<div class="card">
+<div class="card" id="nm">
 <h2>Nuevo momento</h2>
 <label>Título<input id="ti" maxlength="160" placeholder="Nuestra primera cita"></label>
 <label>Lo que quieres recordar<textarea id="tx" maxlength="2000"></textarea></label>
 <label id="fw">Fotos o videos (videos hasta 10 MB)<input id="fl" type="file" accept="image/*,video/*" multiple></label>
+<label>Canción de este momento (MP3, opcional)<input id="msg" type="file" accept="audio/*"></label>
+<label>Nombre de la canción (opcional)<input id="msn" maxlength="120"></label>
 <div class="mut" style="margin:0 0 8px">Colores de este momento (opcional)</div>
 <div id="nt"></div>
 <button class="btn" id="sv">Guardar momento</button>
@@ -176,7 +188,7 @@ const mk=c=>{sb=supabase.createClient(c.u,c.k)};
 if(CFG)mk(CFG);
 const subs=[],notify=()=>subs.forEach(f=>f());
 function sub(fn,err){const run=async()=>{try{await fn()}catch(e){err&&err(e)}};subs.push(run);run()}
-setInterval(()=>{if(!document.hidden&&!document.querySelector('#ft input,#ft textarea,#sgl input,#car textarea,#sp input,#sp textarea'))notify()},20000);
+setInterval(()=>{if(!document.hidden&&![...document.querySelectorAll('audio')].some(a=>!a.paused)&&!document.querySelector('#ft input,#ft textarea,#sgl input,#car textarea,#sp input,#sp textarea'))notify()},20000);
 const last=p=>p.split('/').pop();
 function ref(path){
   const r={
@@ -489,14 +501,54 @@ function startExtras(){
   db.collection('gallery').orderBy('t','desc').limit(100).onSnapshot(q=>galRender(q.docs),()=>{});
   db.collection('voices').orderBy('t','desc').limit(100).onSnapshot(q=>voiceRender(q.docs),()=>{});
 }
+let calE=[],calInit=false;const calOpen=new Set();
+function calRender(en){
+  calE=en;const q=($('cq').value||'').trim().toLowerCase();
+  const list=en.filter(x=>!q||(x.ti||'').toLowerCase().includes(q));
+  if(!calInit&&list.length){calInit=true;const t=new Date(list[0].t);calOpen.add('y'+t.getFullYear());calOpen.add('m'+t.getFullYear()+'-'+t.getMonth())}
+  const by={};
+  list.forEach(x=>{const d=new Date(x.t),y=d.getFullYear(),mo=d.getMonth();by[y]=by[y]||{};(by[y][mo]=by[y][mo]||[]).push(x)});
+  const box=E('div');
+  Object.keys(by).sort((a,b)=>b-a).forEach(y=>{
+    const yd=E('details'),ys=E('summary','',y);yd.dataset.k='y'+y;yd.open=calOpen.has('y'+y)||!!q;
+    ys.style.cssText='font:700 18px Georgia,serif;cursor:pointer;padding:8px 0';yd.appendChild(ys);
+    Object.keys(by[y]).sort((a,b)=>b-a).forEach(mo=>{
+      const md=E('details'),k='m'+y+'-'+mo,nm=new Date(y,mo,1).toLocaleDateString('es',{month:'long'});
+      md.dataset.k=k;md.open=calOpen.has(k)||!!q;
+      const ms=E('summary','',nm.charAt(0).toUpperCase()+nm.slice(1)+' · '+by[y][mo].length);ms.style.cssText='cursor:pointer;padding:6px 0 6px 10px;color:var(--mut)';md.appendChild(ms);
+      by[y][mo].forEach(x=>{
+        const b=E('button','lnk',String(new Date(x.t).getDate()).padStart(2,'0')+' · '+(x.ti||'Sin título')+(x.so?' ♫':''));
+        b.style.cssText='display:block;text-align:left;text-decoration:none;color:var(--tx);padding:7px 0 7px 24px;overflow-wrap:anywhere';
+        b.onclick=()=>{const el=document.getElementById('mo-'+x.id);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});el.animate([{boxShadow:'0 0 0 4px var(--ac)'},{boxShadow:'0 0 0 0 transparent'}],{duration:1800})}};
+        md.appendChild(b);
+      });
+      yd.appendChild(md);
+    });
+    box.appendChild(yd);
+  });
+  $('cl').replaceChildren(list.length?box:E('p','mut',en.length?'No hay momentos con ese nombre.':'Aún no hay momentos.'));
+}
+$('cl').addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k){e.target.open?calOpen.add(k):calOpen.delete(k)}},true);
+$('cq').addEventListener('input',()=>calRender(calE));
+[['Calendario','calc'],['Nuevo momento','nm'],['Galería','gcard'],['Carta','car'],['Voz','vcard'],['Música','mu'],['Sorpresa','sp'],['Línea de tiempo','ft']].forEach(([t,id])=>{
+  const b=E('button','chip',t);b.style.flex='none';
+  b.onclick=()=>{const el=$(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
+  $('nav').appendChild(b);
+});
+document.addEventListener('play',e=>{document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
 function songCard(){
-  const sg=$('sg');sg.textContent='';
+  const pa=document.querySelector('#sg audio');if(pa&&!pa.paused)return;const sg=$('sg');sg.textContent='';
   if(!prof||!prof.sn)return;
   const c=document.createElement('div');c.className='song';
   const i=document.createElement('div');i.className='ic';i.textContent='♫';
   const b=document.createElement('b');b.textContent=prof.sn;
   c.append(i,b);
-  if(/^https:\/\//i.test(prof.sl||'')){const a=document.createElement('a');a.href=prof.sl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Escuchar';c.appendChild(a)}
+  if(prof.sf){
+    const au=E('audio');au.hidden=true;au.controls=true;au.preload='none';au.style.cssText='width:100%;flex:1 1 100%';c.style.flexWrap='wrap';
+    const pb=E('button','','▶ Reproducir');pb.style.cssText='margin-left:auto;background:#fff;color:#10202e;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer';
+    pb.onclick=async()=>{pb.disabled=true;pb.textContent='Cargando…';try{au.src=await mediaUrl(prof.sf);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='No se pudo cargar'}};
+    c.append(pb,au);
+  }else if(/^https:\/\//i.test(prof.sl||'')){const a=document.createElement('a');a.href=prof.sl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Escuchar';c.appendChild(a)}
   sg.appendChild(c);
 }
 function head(){songCard();coverPlace();
@@ -511,7 +563,7 @@ function head(){songCard();coverPlace();
 }
 $('ed').onclick=()=>{if(prof){$('a').value=prof.a;$('b').value=prof.b;$('d').value=prof.d||'';$('sn').value=prof.sn||'';$('sl').value=prof.sl||'';cur=prof.th||null;curF=prof.fo||null;$('pl').value=prof.pl||'';if(cur&&HX.test(cur.ac)&&HX.test(cur.bg)){$('tc').value=cur.ac;$('tb').value=cur.bg}}$('pf').hidden=!$('pf').hidden};
 $('ps').onclick=async()=>{
-  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),sl:/^https:\/\//i.test($('sl').value.trim())?$('sl').value.trim().slice(0,300):'',th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null};
+  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),sl:/^https:\/\//i.test($('sl').value.trim())?$('sl').value.trim().slice(0,300):'',th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null,sf:(prof&&prof.sf)||null};
   if(!p.a||!p.b)return;
   try{
     const ff=$('ffl').files[0];
@@ -521,9 +573,11 @@ $('ps').onclick=async()=>{
       const r=await assets.upload(new Blob([await seal(new Uint8Array(await ff.arrayBuffer()))],{type:'text/plain'}));
       p.fo={id:r.id};
     }
+    const sff=$('sfl').files[0];
+    if(sff){if(sff.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');p.sf=await upl(new Uint8Array(await sff.arrayBuffer()),sff.type||'audio/mpeg')}
     const cf=$('cvf').files[0];
     if(cf){if(!assets)assets=await window.claude.use('assets');p.cv=await upl(await shrink(cf),cf.type==='image/gif'?'image/gif':'image/jpeg')}
-    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';
+    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';$('sfl').value='';
   }catch(e){const b=$('ps');b.textContent=e.message||'No se pudo guardar';setTimeout(()=>b.textContent='Guardar',3500)}
 };
 async function shrink(f){
@@ -554,7 +608,9 @@ $('sv').onclick=async()=>{
       const r=await assets.upload(new Blob([await seal(u)],{type:'text/plain'}));
       md.push({id:r.id,ty:(v||f.type==='image/gif')?f.type:'image/jpeg'});
     }
-    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get()})});
+    let so=null;const sf=$('msg').files[0];
+    if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB. Conviértela a MP3.');if(!assets)assets=await window.claude.use('assets');so=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');so.n=$('msn').value.trim()||sf.name.replace(/\.[^.]+$/,'')}
+    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get(),so})});$('msg').value='';$('msn').value='';
     $('ti').value='';$('tx').value='';$('fl').value='';st('Guardado ♥');
   }catch(e){st((e.code?e.code+': ':'')+(e.message||'No se pudo guardar.'))}
   $('sv').disabled=false;
@@ -602,6 +658,9 @@ function editForm(d,s,m){
   });
   const ht=document.createElement('div');ht.className='mut';ht.textContent='Colores de este momento';d.appendChild(ht);
   const hc=document.createElement('div');d.appendChild(hc);const pk=picker(hc,m.cl,t=>cardTheme(d,t));
+  const so0=m.so||null;let soGone=false;
+  if(so0){const rs=document.createElement('button');rs.type='button';rs.className='lnk';rs.style.display='block';rs.textContent='Quitar canción: '+so0.n;rs.onclick=()=>{soGone=!soGone;rs.textContent=soGone?'Se quitará la canción (toca para deshacer)':'Quitar canción: '+so0.n};d.appendChild(rs)}
+  const sfl=f('Cambiar o agregar canción (MP3)',document.createElement('input'));sfl.type='file';sfl.accept='audio/*';
   const fl=f('Agregar fotos o videos',document.createElement('input'));fl.type='file';fl.accept='image/*,video/*';fl.multiple=true;
   const sv=document.createElement('button'),cn=document.createElement('button'),er=document.createElement('p');
   sv.className='btn';sv.textContent='Guardar cambios';cn.className='lnk';cn.textContent='Cancelar';cn.style.marginLeft='12px';er.className='mut';
@@ -618,26 +677,37 @@ function editForm(d,s,m){
         const r=await assets.upload(new Blob([await seal(u)],{type:'text/plain'}));
         md.push({id:r.id,ty:(v||x.type==='image/gif')?x.type:'image/jpeg'});
       }
+      let nso=soGone?null:so0;const sf=sfl.files[0];
+      if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');nso=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');nso.n=sf.name.replace(/\.[^.]+$/,'')}
       const nt=dt.value&&dt.value!==d0?new Date(dt.value+'T12:00:00').getTime():t0;
-      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get()})});
+      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get(),so:nso})});
     }catch(x){er.textContent=(x.code?x.code+': ':'')+(x.message||'No se pudo guardar.');sv.disabled=false}
   };
   d.append(sv,cn,er);
 }
 async function feed(docs){last=docs;
-  const v=++ver,box=document.createElement('div');
+  const v=++ver,box=document.createElement('div'),en=[];
   for(const s of docs){
     let m;try{m=await openJ(s.data().c)}catch(e){continue}
-    const d=document.createElement('div');d.className='card m';cardTheme(d,m.cl);
+    const d=document.createElement('div');d.className='card m';cardTheme(d,m.cl);d.id='mo-'+s.id;en.push({id:s.id,t:s.data().t,ti:m.ti,so:!!m.so});
     if(m.ti){const h=document.createElement('h3');h.textContent=m.ti;d.appendChild(h)}
     const dt=document.createElement('div');dt.className='mut';dt.textContent=new Date(s.data().t).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});d.appendChild(dt);
     if(m.tx){const p=document.createElement('p');p.textContent=m.tx;d.appendChild(p)}
     (m.md||[]).forEach(x=>{const el=document.createElement(x.ty.startsWith('video/')?'video':'img');if(el.tagName==='VIDEO')el.controls=true;d.appendChild(el);load(x,el)});
+    if(m.so){
+      const bx=document.createElement('div');bx.style.cssText='margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--in)';
+      const hd=document.createElement('div');hd.style.cssText='display:flex;align-items:center;gap:10px';
+      const nm=document.createElement('div');nm.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere';nm.textContent='♫ '+m.so.n;
+      const au=document.createElement('audio');au.controls=true;au.preload='none';au.hidden=true;au.style.cssText='width:100%;margin-top:8px';
+      const pb=document.createElement('button');pb.className='btn';pb.textContent='▶';pb.style.padding='8px 14px';
+      pb.onclick=async()=>{pb.disabled=true;try{au.src=await mediaUrl(m.so);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='✗'}};
+      hd.append(nm,pb);bx.append(hd,au);d.appendChild(bx);
+    }
     const b=document.createElement('button');b.className='lnk';b.textContent='Eliminar';
     let sure=false;b.onclick=()=>{if(!sure){sure=true;b.textContent='¿Seguro? Toca otra vez para eliminar';setTimeout(()=>{sure=false;b.textContent='Eliminar'},4000);return}b.disabled=true;db.doc('moments/'+s.id).delete().catch(()=>{b.disabled=false;sure=false;b.textContent='No se pudo eliminar. Intenta de nuevo'})};
     const eb=document.createElement('button');eb.className='lnk';eb.textContent='Editar';eb.style.marginRight='16px';eb.onclick=()=>editForm(d,s,m);d.append(eb,b);box.appendChild(d);
   }
-  if(v===ver)$('ft').replaceChildren(box);
+  if(v===ver){$('ft').replaceChildren(box);calRender(en)}
 }
 function start(){startMusic();startExtras();
   db.doc('vault/profile').onSnapshot(async s=>{

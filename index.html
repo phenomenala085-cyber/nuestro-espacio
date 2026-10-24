@@ -219,6 +219,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input type="checkbox" id="tex" style="width:auto;margin:0"> Usar mis colores de tarjetas y texto</label>
 <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input type="checkbox" id="pam" checked style="width:auto;margin:0"> Ambiente animado con los colores de mis fotos</label>
 <label>Animación decorativa (video, GIF o WebP; se muestra bajo «días juntos»)<input id="anf" type="file" accept="video/*,image/gif,image/webp"></label>
+<label>Respaldo para iPhone (WebP animado o GIF, opcional)<input id="anf2" type="file" accept="image/webp,image/gif"></label>
 <label>Tamaño de la animación<select id="ansz"><option value="130">Pequeño</option><option value="190" selected>Mediano</option><option value="280">Grande</option></select></label>
 <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input type="checkbox" id="anx" style="width:auto;margin:0"> Quitar la animación</label>
 <div class="mut" style="margin:4px 0 8px">Tipografía de nombres y títulos</div>
@@ -756,14 +757,15 @@ function domColors(src){return new Promise(res=>{
 function setAmb(c){const r=document.documentElement.style;r.setProperty('--a1',c[0]);r.setProperty('--a2',c[1])}
 const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting&&ambOn&&e.target.dataset.amb)setAmb(e.target.dataset.amb.split(','))})},{threshold:.55});
 addEventListener('scroll',()=>{if(scrollY<300&&coverAmb&&ambOn)setAmb(coverAmb)},{passive:true});
+const isApple=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Safari/.test(navigator.userAgent)&&!/Chrome|Chromium|Android|CriOS|FxiOS/.test(navigator.userAgent));
 function animSlot(){
-  const b=$('anm'),a=prof&&prof.an,key=a?a.id+':'+(prof.ans||190):'';
+  const b=$('anm'),a=(isApple&&prof&&prof.an2)?prof.an2:(prof&&prof.an),key=a?a.id+':'+(prof.ans||190):'';
   if(b.dataset.k===key)return;
   b.dataset.k=key;b.replaceChildren();
   if(!a)return;
   const v=/^video\//.test(a.ty),el=document.createElement(v?'video':'img');
   if(v){el.muted=true;el.loop=true;el.autoplay=true;el.playsInline=true;el.setAttribute('muted','')}
-  el.style.cssText='display:block;margin:6px auto;border-radius:12px;width:auto;max-width:80%;height:'+(+prof.ans||190)+'px';
+  el.style.cssText='display:block;margin:6px auto;border-radius:12px;width:auto;max-width:80%;height:'+(+prof.ans||190)+'px;object-fit:contain';
   b.appendChild(el);
   mediaUrl(a).then(u=>{el.src=u;if(v)el.play().catch(()=>{})}).catch(()=>{});
 }
@@ -793,7 +795,7 @@ function head(){songCard();coverPlace();
 }
 $('ed').onclick=()=>{if(prof){$('a').value=prof.a;$('b').value=prof.b;$('d').value=prof.d||'';$('sn').value=prof.sn||'';cur=prof.th||null;curF=prof.fo||null;$('pl').value=prof.pl||'';$('pls1').value=lrcT(prof.ly&&prof.ly.es);$('pls2').value=lrcT(prof.ly&&prof.ly.en);$('pam').checked=prof.amb!==false;$('ansz').value=prof.ans||'190';if(cur&&HX.test(cur.ac)&&HX.test(cur.bg)){$('tc').value=cur.ac;$('tb').value=cur.bg}$('tex').checked=!!(cur&&cur.cd);if(cur&&cur.cd){$('tcd').value=cur.cd;$('ttx').value=cur.tx||'#e6f3ff'}}$('pf').hidden=!$('pf').hidden};
 $('ps').onclick=async()=>{
-  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null,sf:(prof&&prof.sf)||null,ly:lyOf($('pls1').value,$('pls2').value),amb:$('pam').checked,an:(prof&&prof.an)||null,ans:$('ansz').value};
+  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null,sf:(prof&&prof.sf)||null,ly:lyOf($('pls1').value,$('pls2').value),amb:$('pam').checked,an:(prof&&prof.an)||null,an2:(prof&&prof.an2)||null,ans:$('ansz').value};
   if(!p.a||!p.b)return;
   try{
     $('pe').textContent='Guardando…';
@@ -805,13 +807,15 @@ $('ps').onclick=async()=>{
       p.fo={id:r.id};
     }
     const anf=$('anf').files[0];
-    if($('anx').checked)p.an=null;
+    if($('anx').checked){p.an=null;p.an2=null}
     else if(anf){if(anf.size>25e6)throw new Error('La animación pesa más de 25 MB.');if(!assets)assets=await window.claude.use('assets');p.an=await upl(new Uint8Array(await anf.arrayBuffer()),anf.type||'video/mp4')}
+    const a2f=$('anf2').files[0];
+    if(a2f&&!$('anx').checked){if(a2f.size>12e6)throw new Error('El respaldo pesa más de 12 MB.');if(!assets)assets=await window.claude.use('assets');p.an2=await upl(new Uint8Array(await a2f.arrayBuffer()),a2f.type||'image/webp')}
     const sff=$('sfl').files[0];
     if(sff){if(sff.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');p.sf=await upl(new Uint8Array(await sff.arrayBuffer()),sff.type||'audio/mpeg')}
     const cf=$('cvf').files[0];
     if(cf){if(!assets)assets=await window.claude.use('assets');p.cv=await upl(await shrink(cf),cf.type==='image/gif'?'image/gif':'image/jpeg')}
-    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';$('sfl').value='';$('anf').value='';$('anx').checked=false;$('pe').textContent='Guardado ♥';
+    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';$('sfl').value='';$('anf').value='';$('anf2').value='';$('anx').checked=false;$('pe').textContent='Guardado ♥';
   }catch(e){$('pe').textContent='Error: '+((e.code?e.code+' · ':'')+(e.message||'no se pudo guardar'))}
 };
 async function shrink(f){

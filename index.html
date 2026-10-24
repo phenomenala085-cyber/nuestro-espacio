@@ -80,16 +80,14 @@ body.go #fx .fy{animation:fxrush 2.4s var(--d,0s) ease-in forwards}
 @keyframes fxflt{0%{transform:translateY(0) rotate(0);opacity:0}10%{opacity:.4}90%{opacity:.4}100%{transform:translateY(-820px) rotate(25deg);opacity:0}}
 @keyframes fxrush{0%{transform:translate(0,0) scale(.15);opacity:0;filter:blur(0)}25%{opacity:.85}100%{transform:translate(var(--tx),var(--ty)) scale(5);opacity:0;filter:blur(6px)}}
 @media (prefers-reduced-motion:reduce){#fx *{animation:none!important}}
+.cb{transform-box:fill-box;transform-origin:50% 100%;animation:fxbloom 1.1s var(--d,0s) cubic-bezier(.2,.9,.3,1.25) backwards}
 [hidden]{display:none!important}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Cinzel+Decorative:wght@700&family=Dancing+Script:wght@600&family=Great+Vibes&family=Lobster&family=Pacifico&family=Playfair+Display:wght@600&display=swap">
 </head>
 <body>
-<main id="lk"><div id="fx" aria-hidden="true">
-<svg viewBox="0 0 360 780" preserveAspectRatio="xMidYMid slice">
-<defs>
-<symbol id="tl" viewBox="0 0 60 100">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="tl" viewBox="0 0 60 100">
 <path d="M30 56C30 70 29 84 30 99" stroke="#5aa04a" stroke-width="3" fill="none" stroke-linecap="round"/>
 <path d="M30 94C14 90 9 76 12 64C22 70 28 80 30 94Z" fill="#5aa04a"/>
 <path d="M30 90C46 86 51 74 48 62C38 68 32 78 30 90Z" fill="#4c9140"/>
@@ -99,7 +97,11 @@ body.go #fx .fy{animation:fxrush 2.4s var(--d,0s) ease-in forwards}
 <path d="M30 54C46 52 52 34 48 12C40 20 32 28 30 54Z" fill="#000" opacity=".22"/>
 <path d="M30 57C19 45 19 22 30 5C41 22 41 45 30 57Z" fill="var(--c)"/>
 <path d="M30 57C19 45 19 22 30 5C41 22 41 45 30 57Z" fill="#fff" opacity=".16"/>
-</symbol>
+</symbol></defs></svg>
+<main id="lk"><div id="fx" aria-hidden="true">
+<svg viewBox="0 0 360 780" preserveAspectRatio="xMidYMid slice">
+<defs>
+
 <filter id="gl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
 <g class="vg">
@@ -343,7 +345,7 @@ $('un').onclick=async()=>{
     key=await derive(pw,salt);
     if(s.exists)await openJ(s.data().check);
     else await r.set({salt:b64(salt),check:await sealJ({ok:1})});
-    $('pw').value='';$('lk').hidden=true;$('ap').hidden=false;start();
+    $('pw').value='';start();bloomTransition(()=>{$('lk').hidden=true;$('ap').hidden=false;window.scrollTo(0,0)});
   }catch(e){key=null;ms('Contraseña incorrecta o sin acceso.')}
   $('un').disabled=false;
 };
@@ -675,18 +677,58 @@ function syncTool(srcFn,taES,taEN){
   load();
 }
 $('psy').onclick=()=>syncTool(()=>$('sfl').files[0]?URL.createObjectURL($('sfl').files[0]):(prof&&prof.sf?mediaUrl(prof.sf):null),$('pls1'),$('pls2'));
+function player(getSrc){
+  const w=E('div'),au=E('audio'),b=E('button','btn','▶ Reproducir'),r=E('input');
+  w.style.cssText='display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;margin-top:6px';
+  au.preload='none';au.style.display='none';
+  r.type='range';r.min=0;r.max=1000;r.value=0;r.hidden=true;r.style.cssText='width:100%;margin:0;padding:0';
+  let ready=false;
+  b.onclick=async()=>{
+    if(!ready){
+      b.disabled=true;b.textContent='Cargando…';
+      try{au.src=await getSrc();ready=true}catch(e){b.disabled=false;b.textContent='No se pudo cargar. Toca para reintentar';return}
+      b.disabled=false;
+    }
+    if(au.paused)au.play().catch(()=>{b.textContent='▶ Reproducir'});else au.pause();
+  };
+  au.addEventListener('play',()=>{b.textContent='⏸ Pausar';r.hidden=false});
+  au.addEventListener('pause',()=>{b.textContent='▶ Reproducir'});
+  au.addEventListener('ended',()=>{b.textContent='▶ Reproducir';r.value=0});
+  au.addEventListener('timeupdate',()=>{if(au.duration)r.value=au.currentTime/au.duration*1000});
+  r.oninput=()=>{if(au.duration)au.currentTime=r.value/1000*au.duration};
+  w.append(b,r,au);w.au=au;return w;
+}
+function bloomTransition(mid){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){mid();return}
+  const W=innerWidth,H=innerHeight,n=4,cw=W/n,rows=Math.ceil(H/(cw*1.1))+1,P=['#f48fb1','#e0314b','#fdf4f6','#f6c3a3','#ec6f9a','#e0314b'];
+  const NS='http://www.w3.org/2000/svg',o=E('div'),s=document.createElementNS(NS,'svg');
+  o.style.cssText='position:fixed;inset:0;z-index:300;pointer-events:none;opacity:0;transition:opacity .4s;overflow:hidden;background:radial-gradient(ellipse 85% 42% at 50% 50%,rgba(205,240,255,.9) 0%,rgba(70,182,246,.8) 30%,rgba(25,95,215,.6) 60%,transparent 100%),linear-gradient(160deg,#040d46 0%,#0a2a90 48%,#051660 100%)';
+  s.setAttribute('viewBox','0 0 '+W+' '+H);s.style.cssText='width:100%;height:100%;display:block;transform-origin:50% 55%';
+  for(let r=0;r<rows;r++)for(let c=0;c<=n;c++){
+    const h=cw*(1.5+Math.random()*.5),w=h*.6,u=document.createElementNS(NS,'use');
+    u.setAttribute('href','#tl');u.setAttribute('width',w);u.setAttribute('height',h);
+    u.setAttribute('x',c*cw+(r%2?cw/2:0)-w/2+(Math.random()-.5)*cw*.25);
+    u.setAttribute('y',r*cw*1.1-h*.25+(Math.random()-.5)*cw*.2);
+    u.setAttribute('class','cb');u.style.setProperty('--c',P[Math.floor(Math.random()*P.length)]);u.style.setProperty('--d',(Math.random()*1.3).toFixed(2)+'s');
+    s.appendChild(u);
+  }
+  o.appendChild(s);document.body.appendChild(o);
+  requestAnimationFrame(()=>{o.style.opacity=1});
+  setTimeout(mid,1900);
+  setTimeout(()=>{s.style.transition='transform 1s ease-in';s.style.transform='scale(1.5)';o.style.transition='opacity .9s';o.style.opacity=0},2150);
+  setTimeout(()=>o.remove(),3300);
+}
 function songCard(){
-  const pa=document.querySelector('#sg audio');if(pa&&!pa.paused)return;const sg=$('sg');sg.textContent='';
+  const pa=document.querySelector('#sg audio');if(pa&&(!pa.paused||(pa.currentTime>0&&!pa.ended)))return;const sg=$('sg');sg.textContent='';
   if(!prof||!prof.sn)return;
   const c=document.createElement('div');c.className='song';
   const i=document.createElement('div');i.className='ic';i.textContent='♫';
   const b=document.createElement('b');b.textContent=prof.sn;
   c.append(i,b);
   if(prof.sf){
-    const au=E('audio');au.hidden=true;au.controls=true;au.preload='none';au.style.cssText='width:100%;flex:1 1 100%';c.style.flexDirection='column';c.style.textAlign='center';
-    const pb=E('button','','▶ Reproducir');pb.style.cssText='margin:6px auto 0;background:#fff;color:#10202e;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer';
-    pb.onclick=async()=>{pb.disabled=true;pb.textContent='Cargando…';try{au.src=await mediaUrl(prof.sf);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='No se pudo cargar'}};
-    c.append(pb,au);if(prof.ly)lyricsUI(c,prof.ly,au);
+    c.style.flexDirection='column';c.style.textAlign='center';
+    const pl=player(()=>mediaUrl(prof.sf));c.append(pl);
+    if(prof.ly)lyricsUI(c,prof.ly,pl.au);
   }
   sg.appendChild(c);
 }
@@ -843,10 +885,7 @@ async function feed(docs){last=docs;
       const bx=document.createElement('div');bx.style.cssText='margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--in)';
       const hd=document.createElement('div');hd.style.cssText='display:flex;align-items:center;gap:10px';
       const nm=document.createElement('div');nm.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere';nm.textContent='♫ '+m.so.n;
-      const au=document.createElement('audio');au.controls=true;au.preload='none';au.hidden=true;au.style.cssText='width:100%;margin-top:8px';
-      const pb=document.createElement('button');pb.className='btn';pb.textContent='▶';pb.style.padding='8px 14px';
-      pb.onclick=async()=>{pb.disabled=true;try{au.src=await mediaUrl(m.so);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='✗'}};
-      hd.append(nm,pb);bx.append(hd,au);if(m.ly)lyricsUI(bx,m.ly,au);d.appendChild(bx);
+      const pl=player(()=>mediaUrl(m.so));hd.append(nm);bx.append(hd,pl);if(m.ly)lyricsUI(bx,m.ly,pl.au);d.appendChild(bx);
     }
     const b=document.createElement('button');b.className='lnk';b.textContent='Eliminar';
     let sure=false;b.onclick=()=>{if(!sure){sure=true;b.textContent='¿Seguro? Toca otra vez para eliminar';setTimeout(()=>{sure=false;b.textContent='Eliminar'},4000);return}b.disabled=true;db.doc('moments/'+s.id).delete().catch(()=>{b.disabled=false;sure=false;b.textContent='No se pudo eliminar. Intenta de nuevo'})};

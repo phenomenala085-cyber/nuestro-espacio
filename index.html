@@ -159,7 +159,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label id="fw">Fotos o videos (videos hasta 10 MB)<input id="fl" type="file" accept="image/*,video/*" multiple></label>
 <label>Canción de este momento (MP3, opcional)<input id="msg" type="file" accept="audio/*"></label>
 <label>Nombre de la canción (opcional)<input id="msn" maxlength="120"></label>
-<label>Letra en español (opcional; con [mm:ss.xx] al inicio de cada línea se sincroniza)<textarea id="mly1"></textarea></label>
+<label>Letra en español (opcional). Pégala sin tiempos: si tiene las mismas líneas que la inglesa, copio los tiempos al guardar<textarea id="mly1"></textarea></label>
 <label>Letra en inglés (opcional)<textarea id="mly2"></textarea></label>
 <div class="mut" style="margin:0 0 8px">Colores de este momento (opcional)</div>
 <div id="nt"></div>
@@ -538,10 +538,15 @@ $('cq').addEventListener('input',()=>calRender(calE));
   $('nav').appendChild(b);
 });
 document.addEventListener('play',e=>{document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
-const lrcP=t=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);return m?{t:+m[1]*60+ +m[2],x:m[3]}:{t:null,x:l}});
+const lrcP=t=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>!/^\[[^\]]*\]$/.test(l)||/^\[\d+:\d/.test(l)).map(l=>{const m=l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);return m?{t:+m[1]*60+ +m[2],x:m[3]}:{t:null,x:l}}).filter(l=>l.x);
 const fmt=s=>{const m=Math.floor(s/60);return '['+String(m).padStart(2,'0')+':'+(s-m*60).toFixed(2).padStart(5,'0')+']'};
 const lrcT=a=>(a||[]).map(l=>(l.t==null?'':fmt(l.t)+' ')+l.x).join('\n');
-const lyOf=(a,b)=>{const x=lrcP(a),y=lrcP(b);return x.length||y.length?{es:x,en:y}:null};
+const lyOf=(a,b)=>{
+  let x=lrcP(a),y=lrcP(b);
+  const un=z=>z.length&&z.every(l=>l.t==null),ok=z=>z.length&&z.every(l=>l.t!=null);
+  if(un(x)&&ok(y)&&x.length===y.length)x=x.map((l,i)=>({t:y[i].t,x:l.x}));
+  else if(un(y)&&ok(x)&&x.length===y.length)y=y.map((l,i)=>({t:x[i].t,x:l.x}));
+  return x.length||y.length?{es:x,en:y}:null};
 function lyricsUI(bx,ly,au){
   const es=ly.es||[],en=ly.en||[];
   if(!es.length&&!en.length)return;
@@ -580,7 +585,7 @@ function syncTool(srcFn,taES,taEN){
   let lines=[],stamps=[],i=0;
   const ta=()=>sel.value==='es'?taES:taEN;
   const draw=()=>{cur.textContent=i<lines.length?lines[i]:(lines.length?'✓ Todas las líneas marcadas':'Escribe primero la letra en este idioma.');nx.textContent=i+1<lines.length?'Sigue: '+lines[i+1]:'';mk.disabled=i>=lines.length};
-  const load=()=>{lines=ta().value.split('\n').map(l=>l.replace(/^\[\d+:\d+(?:\.\d+)?\]\s*/,'').trim()).filter(Boolean);stamps=[];i=0;draw()};
+  const load=()=>{lines=ta().value.split('\n').map(l=>l.replace(/^\[\d+:\d+(?:\.\d+)?\]\s*/,'').trim()).filter(Boolean).filter(l=>!/^\[[^\]]*\]$/.test(l));stamps=[];i=0;draw()};
   sel.onchange=load;
   mk.onclick=()=>{stamps[i]=Math.max(0,au.currentTime-0.25);i++;draw()};
   bk.onclick=()=>{if(i>0){i--;draw();au.currentTime=Math.max(0,(stamps[i]||0)-1.5)}};
@@ -715,7 +720,7 @@ function editForm(d,s,m){
   const so0=m.so||null;let soGone=false;
   if(so0){const rs=document.createElement('button');rs.type='button';rs.className='lnk';rs.style.display='block';rs.textContent='Quitar canción: '+so0.n;rs.onclick=()=>{soGone=!soGone;rs.textContent=soGone?'Se quitará la canción (toca para deshacer)':'Quitar canción: '+so0.n};d.appendChild(rs)}
   const sfl=f('Cambiar o agregar canción (MP3)',document.createElement('input'));sfl.type='file';sfl.accept='audio/*';
-  const taES=f('Letra en español (con [mm:ss.xx] al inicio de la línea se sincroniza)',document.createElement('textarea')),taEN=f('Letra en inglés',document.createElement('textarea'));
+  const taES=f('Letra en español. Pégala sin tiempos: si tiene las mismas líneas que la inglesa, copio los tiempos al guardar',document.createElement('textarea')),taEN=f('Letra en inglés',document.createElement('textarea'));
   taES.value=lrcT(m.ly&&m.ly.es);taEN.value=lrcT(m.ly&&m.ly.en);taES.style.minHeight=taEN.style.minHeight='110px';
   const sy=document.createElement('button');sy.type='button';sy.className='lnk';sy.style.display='block';sy.textContent='♫ Sincronizar la letra con la canción';
   sy.onclick=()=>syncTool(()=>sfl.files[0]?URL.createObjectURL(sfl.files[0]):(so0&&!soGone?mediaUrl(so0):null),taES,taEN);d.appendChild(sy);

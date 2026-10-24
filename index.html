@@ -118,7 +118,6 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label>Foto de portada<input id="cvf" type="file" accept="image/*"></label>
 <label>Archivo de su canción (MP3, para reproducir aquí)<input id="sfl" type="file" accept="audio/*"></label>
 <label>Su canción (nombre y artista)<input id="sn" maxlength="160"></label>
-<label>Enlace de Spotify o YouTube<input id="sl" type="url" maxlength="300" placeholder="https://open.spotify.com/…"></label>
 <div class="mut" style="margin:4px 0 8px">Tema de colores</div>
 <div id="th" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
 <label>Color principal<input id="tc" type="color" value="#1b7fd0"></label>
@@ -127,6 +126,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <div id="fo" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
 <label>O sube tu propia fuente (.ttf, .otf o .woff2)<input id="ffl" type="file" accept=".ttf,.otf,.woff,.woff2,font/*"></label>
 <button class="btn" id="ps">Guardar</button>
+<p class="mut" id="pe" style="margin:8px 0 0"></p>
 </div>
 </div>
 <div id="nav" style="display:flex;gap:8px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 8px;margin-top:8px"></div>
@@ -159,6 +159,8 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label id="fw">Fotos o videos (videos hasta 10 MB)<input id="fl" type="file" accept="image/*,video/*" multiple></label>
 <label>Canción de este momento (MP3, opcional)<input id="msg" type="file" accept="audio/*"></label>
 <label>Nombre de la canción (opcional)<input id="msn" maxlength="120"></label>
+<label>Letra en español (opcional; con [mm:ss.xx] al inicio de cada línea se sincroniza)<textarea id="mly1"></textarea></label>
+<label>Letra en inglés (opcional)<textarea id="mly2"></textarea></label>
 <div class="mut" style="margin:0 0 8px">Colores de este momento (opcional)</div>
 <div id="nt"></div>
 <button class="btn" id="sv">Guardar momento</button>
@@ -536,6 +538,56 @@ $('cq').addEventListener('input',()=>calRender(calE));
   $('nav').appendChild(b);
 });
 document.addEventListener('play',e=>{document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
+const lrcP=t=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);return m?{t:+m[1]*60+ +m[2],x:m[3]}:{t:null,x:l}});
+const fmt=s=>{const m=Math.floor(s/60);return '['+String(m).padStart(2,'0')+':'+(s-m*60).toFixed(2).padStart(5,'0')+']'};
+const lrcT=a=>(a||[]).map(l=>(l.t==null?'':fmt(l.t)+' ')+l.x).join('\n');
+const lyOf=(a,b)=>{const x=lrcP(a),y=lrcP(b);return x.length||y.length?{es:x,en:y}:null};
+function lyricsUI(bx,ly,au){
+  const es=ly.es||[],en=ly.en||[];
+  if(!es.length&&!en.length)return;
+  let mode=es.length?'es':'en',els=[],lines=[],lastK=-1;
+  const tabs=E('div'),box=E('div');
+  tabs.style.cssText='display:flex;gap:6px;margin-top:10px';
+  box.style.cssText='position:relative;max-height:220px;overflow:auto;margin-top:8px;padding:6px 2px';
+  const draw=()=>{
+    lines=mode==='en'?en:es.map((l,i)=>({t:l.t,x:l.x,y:mode==='both'&&en[i]?en[i].x:''}));
+    lastK=-1;box.replaceChildren();
+    els=lines.map(l=>{const r=E('div','',l.x);r.style.cssText='padding:5px 0;font:17px/1.4 Georgia,serif;opacity:.5;transition:opacity .25s';
+      if(l.y){const y=E('div','mut',l.y);y.style.fontSize='14px';r.appendChild(y)}box.appendChild(r);return r});
+  };
+  [['es','Español',es.length],['en','English',en.length],['both','Ambos',es.length&&en.length]].forEach(([k,t,ok])=>{
+    if(!ok)return;const b=E('button','chip',t);b.style.cssText='padding:5px 12px;font-size:13px';b.onclick=()=>{mode=k;draw()};tabs.appendChild(b);
+  });
+  au.addEventListener('timeupdate',()=>{
+    const c=au.currentTime;let k=-1;
+    lines.forEach((l,i)=>{if(l.t!=null&&l.t<=c)k=i});
+    els.forEach((r,i)=>{r.style.opacity=i===k?'1':'.5';r.style.fontWeight=i===k?'700':'400'});
+    if(k>=0&&k!==lastK){lastK=k;box.scrollTo({top:els[k].offsetTop-box.clientHeight/2+els[k].clientHeight/2,behavior:'smooth'})}
+  });
+  draw();bx.append(tabs,box);
+}
+function syncTool(srcFn,taES,taEN){
+  const o=E('div'),w=E('div','wrap');
+  o.style.cssText='position:fixed;inset:0;z-index:100;overflow:auto;background:var(--bg);color:var(--tx)';
+  o.appendChild(w);document.body.appendChild(o);
+  const sel=E('select');[['es','Español'],['en','English']].forEach(([v,t])=>{const p=E('option','',t);p.value=v;sel.appendChild(p)});
+  const au=E('audio');au.controls=true;au.style.cssText='width:100%;margin:10px 0';
+  const cur=E('div');cur.style.cssText='font:22px/1.4 Georgia,serif;min-height:90px;margin:14px 0;overflow-wrap:anywhere';
+  const nx=E('div','mut'),info=E('p','mut','Reproduce la canción y toca «Marcar línea» justo cuando empiece cada línea.');
+  const mk=E('button','btn','Marcar línea');mk.style.cssText='width:100%;padding:18px;font-size:18px;margin-top:14px';
+  const bk=E('button','lnk','← Deshacer'),dn=E('button','btn','Listo');dn.style.marginLeft='12px';
+  w.append(E('h2','','Sincronizar letra'),sel,info,au,cur,nx,mk,bk,dn);
+  let lines=[],stamps=[],i=0;
+  const ta=()=>sel.value==='es'?taES:taEN;
+  const draw=()=>{cur.textContent=i<lines.length?lines[i]:(lines.length?'✓ Todas las líneas marcadas':'Escribe primero la letra en este idioma.');nx.textContent=i+1<lines.length?'Sigue: '+lines[i+1]:'';mk.disabled=i>=lines.length};
+  const load=()=>{lines=ta().value.split('\n').map(l=>l.replace(/^\[\d+:\d+(?:\.\d+)?\]\s*/,'').trim()).filter(Boolean);stamps=[];i=0;draw()};
+  sel.onchange=load;
+  mk.onclick=()=>{stamps[i]=Math.max(0,au.currentTime-0.25);i++;draw()};
+  bk.onclick=()=>{if(i>0){i--;draw();au.currentTime=Math.max(0,(stamps[i]||0)-1.5)}};
+  dn.onclick=()=>{if(stamps.length)ta().value=lines.map((l,k)=>(stamps[k]!=null?fmt(stamps[k])+' ':'')+l).join('\n');o.remove()};
+  Promise.resolve(srcFn()).then(s=>{if(!s){info.textContent='Primero agrega o elige la canción de este momento.';mk.disabled=true;return}au.src=s}).catch(()=>{info.textContent='No se pudo cargar la canción.'});
+  load();
+}
 function songCard(){
   const pa=document.querySelector('#sg audio');if(pa&&!pa.paused)return;const sg=$('sg');sg.textContent='';
   if(!prof||!prof.sn)return;
@@ -548,7 +600,7 @@ function songCard(){
     const pb=E('button','','▶ Reproducir');pb.style.cssText='margin-left:auto;background:#fff;color:#10202e;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer';
     pb.onclick=async()=>{pb.disabled=true;pb.textContent='Cargando…';try{au.src=await mediaUrl(prof.sf);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='No se pudo cargar'}};
     c.append(pb,au);
-  }else if(/^https:\/\//i.test(prof.sl||'')){const a=document.createElement('a');a.href=prof.sl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Escuchar';c.appendChild(a)}
+  }
   sg.appendChild(c);
 }
 function head(){songCard();coverPlace();
@@ -561,11 +613,12 @@ function head(){songCard();coverPlace();
       const l=document.createElement('div');l.className='mut';l.textContent='días juntos';h.appendChild(l)}
   }
 }
-$('ed').onclick=()=>{if(prof){$('a').value=prof.a;$('b').value=prof.b;$('d').value=prof.d||'';$('sn').value=prof.sn||'';$('sl').value=prof.sl||'';cur=prof.th||null;curF=prof.fo||null;$('pl').value=prof.pl||'';if(cur&&HX.test(cur.ac)&&HX.test(cur.bg)){$('tc').value=cur.ac;$('tb').value=cur.bg}}$('pf').hidden=!$('pf').hidden};
+$('ed').onclick=()=>{if(prof){$('a').value=prof.a;$('b').value=prof.b;$('d').value=prof.d||'';$('sn').value=prof.sn||'';cur=prof.th||null;curF=prof.fo||null;$('pl').value=prof.pl||'';if(cur&&HX.test(cur.ac)&&HX.test(cur.bg)){$('tc').value=cur.ac;$('tb').value=cur.bg}}$('pf').hidden=!$('pf').hidden};
 $('ps').onclick=async()=>{
-  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),sl:/^https:\/\//i.test($('sl').value.trim())?$('sl').value.trim().slice(0,300):'',th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null,sf:(prof&&prof.sf)||null};
+  const p={a:$('a').value.trim().slice(0,60),b:$('b').value.trim().slice(0,60),d:/^\d{4}-\d{2}-\d{2}$/.test($('d').value)?$('d').value:'',sn:$('sn').value.trim().slice(0,160),th:cur,fo:curF,pl:$('pl').value.trim().slice(0,80),cv:(prof&&prof.cv)||null,sf:(prof&&prof.sf)||null};
   if(!p.a||!p.b)return;
   try{
+    $('pe').textContent='Guardando…';
     const ff=$('ffl').files[0];
     if(ff){
       if(ff.size>5e6)throw new Error('La fuente pesa más de 5 MB.');
@@ -577,8 +630,8 @@ $('ps').onclick=async()=>{
     if(sff){if(sff.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');p.sf=await upl(new Uint8Array(await sff.arrayBuffer()),sff.type||'audio/mpeg')}
     const cf=$('cvf').files[0];
     if(cf){if(!assets)assets=await window.claude.use('assets');p.cv=await upl(await shrink(cf),cf.type==='image/gif'?'image/gif':'image/jpeg')}
-    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';$('sfl').value='';
-  }catch(e){const b=$('ps');b.textContent=e.message||'No se pudo guardar';setTimeout(()=>b.textContent='Guardar',3500)}
+    await db.doc('vault/profile').set({c:await sealJ(p)});$('pf').hidden=true;$('ffl').value='';$('cvf').value='';$('sfl').value='';$('pe').textContent='Guardado ♥';
+  }catch(e){$('pe').textContent='Error: '+((e.code?e.code+' · ':'')+(e.message||'no se pudo guardar'))}
 };
 async function shrink(f){
   if(f.type==='image/gif'){if(f.size>10e6)throw new Error('Los GIFs pueden pesar hasta 10 MB.');return new Uint8Array(await f.arrayBuffer())}
@@ -610,7 +663,8 @@ $('sv').onclick=async()=>{
     }
     let so=null;const sf=$('msg').files[0];
     if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB. Conviértela a MP3.');if(!assets)assets=await window.claude.use('assets');so=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');so.n=$('msn').value.trim()||sf.name.replace(/\.[^.]+$/,'')}
-    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get(),so})});$('msg').value='';$('msn').value='';
+    const ly=lyOf($('mly1').value,$('mly2').value);
+    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get(),so,ly})});$('msg').value='';$('msn').value='';$('mly1').value='';$('mly2').value='';
     $('ti').value='';$('tx').value='';$('fl').value='';st('Guardado ♥');
   }catch(e){st((e.code?e.code+': ':'')+(e.message||'No se pudo guardar.'))}
   $('sv').disabled=false;
@@ -661,6 +715,10 @@ function editForm(d,s,m){
   const so0=m.so||null;let soGone=false;
   if(so0){const rs=document.createElement('button');rs.type='button';rs.className='lnk';rs.style.display='block';rs.textContent='Quitar canción: '+so0.n;rs.onclick=()=>{soGone=!soGone;rs.textContent=soGone?'Se quitará la canción (toca para deshacer)':'Quitar canción: '+so0.n};d.appendChild(rs)}
   const sfl=f('Cambiar o agregar canción (MP3)',document.createElement('input'));sfl.type='file';sfl.accept='audio/*';
+  const taES=f('Letra en español (con [mm:ss.xx] al inicio de la línea se sincroniza)',document.createElement('textarea')),taEN=f('Letra en inglés',document.createElement('textarea'));
+  taES.value=lrcT(m.ly&&m.ly.es);taEN.value=lrcT(m.ly&&m.ly.en);taES.style.minHeight=taEN.style.minHeight='110px';
+  const sy=document.createElement('button');sy.type='button';sy.className='lnk';sy.style.display='block';sy.textContent='♫ Sincronizar la letra con la canción';
+  sy.onclick=()=>syncTool(()=>sfl.files[0]?URL.createObjectURL(sfl.files[0]):(so0&&!soGone?mediaUrl(so0):null),taES,taEN);d.appendChild(sy);
   const fl=f('Agregar fotos o videos',document.createElement('input'));fl.type='file';fl.accept='image/*,video/*';fl.multiple=true;
   const sv=document.createElement('button'),cn=document.createElement('button'),er=document.createElement('p');
   sv.className='btn';sv.textContent='Guardar cambios';cn.className='lnk';cn.textContent='Cancelar';cn.style.marginLeft='12px';er.className='mut';
@@ -680,7 +738,7 @@ function editForm(d,s,m){
       let nso=soGone?null:so0;const sf=sfl.files[0];
       if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');nso=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');nso.n=sf.name.replace(/\.[^.]+$/,'')}
       const nt=dt.value&&dt.value!==d0?new Date(dt.value+'T12:00:00').getTime():t0;
-      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get(),so:nso})});
+      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get(),so:nso,ly:lyOf(taES.value,taEN.value)})});
     }catch(x){er.textContent=(x.code?x.code+': ':'')+(x.message||'No se pudo guardar.');sv.disabled=false}
   };
   d.append(sv,cn,er);
@@ -701,7 +759,7 @@ async function feed(docs){last=docs;
       const au=document.createElement('audio');au.controls=true;au.preload='none';au.hidden=true;au.style.cssText='width:100%;margin-top:8px';
       const pb=document.createElement('button');pb.className='btn';pb.textContent='▶';pb.style.padding='8px 14px';
       pb.onclick=async()=>{pb.disabled=true;try{au.src=await mediaUrl(m.so);au.hidden=false;pb.hidden=true;au.play()}catch(e){pb.disabled=false;pb.textContent='✗'}};
-      hd.append(nm,pb);bx.append(hd,au);d.appendChild(bx);
+      hd.append(nm,pb);bx.append(hd,au);if(m.ly)lyricsUI(bx,m.ly,au);d.appendChild(bx);
     }
     const b=document.createElement('button');b.className='lnk';b.textContent='Eliminar';
     let sure=false;b.onclick=()=>{if(!sure){sure=true;b.textContent='¿Seguro? Toca otra vez para eliminar';setTimeout(()=>{sure=false;b.textContent='Eliminar'},4000);return}b.disabled=true;db.doc('moments/'+s.id).delete().catch(()=>{b.disabled=false;sure=false;b.textContent='No se pudo eliminar. Intenta de nuevo'})};

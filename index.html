@@ -339,7 +339,7 @@ setInterval(()=>{if(!document.hidden&&![...document.querySelectorAll('audio')].s
 const last=p=>p.split('/').pop();
 function ref(path){
   const r={
-    async get(){const x=await sb.from('docs').select('data').eq('path',path).maybeSingle();if(x.error)throw x.error;const d=x.data&&x.data.data;return{exists:!!d,id:last(path),data:()=>d}},
+    async get(){const x=await sb.from('docs').select('data,owner').eq('path',path).maybeSingle();if(x.error)throw x.error;const d=x.data&&x.data.data;return{exists:!!d,id:last(path),owner:x.data&&x.data.owner,data:()=>d}},
     async set(o){const x=await sb.from('docs').upsert({path,col:path.split('/')[0],t:o.t||0,data:o});if(x.error)throw x.error;notify()},
     async delete(){const x=await sb.from('docs').delete().eq('path',path);if(x.error)throw x.error;notify()},
     onSnapshot(next,err){sub(async()=>next(await r.get()),err)}
@@ -352,10 +352,11 @@ const db={
       doc:id=>ref(name+'/'+(id||crypto.randomUUID())),
       async add(o){const r=ref(name+'/'+crypto.randomUUID());await r.set(o);return r},
       orderBy:()=>q,limit:k=>{n=k;return q},
-      onSnapshot(next,err){sub(async()=>{const x=await sb.from('docs').select('path,data').eq('col',name).order('t',{ascending:false}).limit(n);if(x.error)throw x.error;next({docs:x.data.map(r=>({id:last(r.path),data:()=>r.data}))})},err)}
+      onSnapshot(next,err){sub(async()=>{const x=await sb.from('docs').select('path,data,owner').eq('col',name).order('t',{ascending:false}).limit(n);if(x.error)throw x.error;next({docs:x.data.map(r=>({id:last(r.path),owner:r.owner,data:()=>r.data}))})},err)}
     };return q}
 };
 const assets={async upload(b){const id=crypto.randomUUID().replace(/-/g,'');const x=await sb.storage.from('media').upload(id,b,{contentType:'text/plain'});if(x.error)throw x.error;return{id}}};
+window.__me=async()=>{const x=await sb.auth.getUser(),u=x.data&&x.data.user;return u?{id:u.id,email:(u.email||'').toLowerCase()}:null};
 window.__out=async()=>{await sb.auth.signOut()};
 window.__all=async()=>{const x=await sb.from('docs').select('path,col,t,data');if(x.error)throw x.error;return x.data};
 window.__blob=async id=>{const x=await sb.storage.from('media').download(id);if(x.error)throw x.error;return x.data.text()};
@@ -396,6 +397,7 @@ const openJ=async t=>JSON.parse(td.decode(await open(t)));
 const ms=t=>$('ms').textContent=t, st=t=>$('st').textContent=t;
 (async()=>{
   const c=window.claude;try{db=await c.use('db')}catch(e){}try{assets=await c.use('assets')}catch(e){}
+  try{ME=await window.__me();ADM=!!ME&&ME.email==='phenomenala085@gmail.com'}catch(e){}
   if(db)$('un').disabled=false;else ms('No se pudo conectar. Revisa tu internet y los datos del proyecto.');
   
 })();
@@ -486,7 +488,7 @@ async function songsRender(docs){
     };
     const d=document.createElement('button');d.className='lnk';d.textContent='Eliminar';
     let sure=false;d.onclick=()=>{if(!sure){sure=true;d.textContent='¿Seguro?';setTimeout(()=>{sure=false;d.textContent='Eliminar'},4000);return}d.disabled=true;db.doc('songs/'+m.id).delete().catch(()=>{d.disabled=false;d.textContent='Error'})};
-    row.append(im,t,p,e,d);box.appendChild(row);
+    if(!ME||s.owner!==ME.id)e.hidden=true;if(!ADM)d.hidden=true;row.append(im,t,p,e,d);box.appendChild(row);
   }
   $('sgl').replaceChildren(box);
 }
@@ -510,25 +512,30 @@ const E=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=nul
 const two=(b,l,fn)=>{let s=false;b.onclick=()=>{if(!s){s=true;b.textContent='¿Seguro?';setTimeout(()=>{s=false;b.textContent=l},4000);return}fn()}};
 const upl=async(u,ty)=>({id:(await assets.upload(new Blob([await seal(u)],{type:'text/plain'}))).id,ty});
 let LT=null,editL=false,SP=null,mr=null,chunks=[];
-function coverPlace(){ambOn=!prof||prof.amb!==false;document.body.classList.toggle('noamb',!ambOn);animSlot();
+let ME=null,ADM=false,pOwner=null,LTowner=null,SPS={},LEG=null,ATT={};
+function coverPlace(){$('ed').hidden=!!(prof&&pOwner&&ME&&pOwner!==ME.id);if($('ed').hidden)$('pf').hidden=true;ambOn=!prof||prof.amb!==false;document.body.classList.toggle('noamb',!ambOn);animSlot();
   $('plc').textContent=prof&&prof.pl?'📍 Todo empezó en '+prof.pl:'';
   const ci=$('cvi');
   if(prof&&prof.cv)mediaUrl(prof.cv).then(u=>{ci.src=u;ci.hidden=false;domColors(u).then(c=>{if(c){coverAmb=c;if(ambOn&&scrollY<500)setAmb(c);const t=(cur&&cur.auto)?cur:(prof&&prof.th);if(t&&t.auto)applyTheme(t)}})}).catch(()=>{});else ci.hidden=true;
   const vd=$('vd'),v0=vd.value;vd.replaceChildren();
   [prof&&prof.a,prof&&prof.b].filter(Boolean).forEach(n=>{const o=E('option','',n);o.value=n;vd.appendChild(o)});
   if(v0)vd.value=v0;
+  if(ME&&prof){vd.value=ADM?prof.a:prof.b;vd.disabled=true}
 }
 function renderLetter(){
   const b=$('car');b.replaceChildren(E('h2','','Mi carta para ti'));
-  if(editL||!LT){
+  const can=!!(ADM&&(!LT||LTowner===ME.id));
+  if(can&&(editL||!LT)){
     const t=E('textarea');t.value=LT?LT.tx:'';t.style.minHeight='220px';t.placeholder='Escribe aquí tu carta…';
     const s=E('button','btn','Guardar carta');
     s.onclick=async()=>{s.disabled=true;try{await db.doc('vault/letter').set({t:0,c:await sealJ({tx:t.value.trim()})})}catch(e){s.textContent='Error, reintenta';s.disabled=false}};
     b.append(t,s);
+  }else if(!LT){
+    b.append(E('p','mut','Aún no hay carta.'));
   }else{
     const p=E('div','',LT.tx);p.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font:18px/1.7 Georgia,"Times New Roman",serif';
-    const e=E('button','lnk','Editar carta');e.onclick=()=>{editL=true;renderLetter()};
-    b.append(p,e);
+    b.append(p);
+    if(can){const e=E('button','lnk','Editar carta');e.onclick=()=>{editL=true;renderLetter()};b.append(e)}
   }
 }
 async function galRender(docs){
@@ -540,7 +547,7 @@ async function galRender(docs){
     const im=E('img');im.style.cssText='width:100%;height:340px;object-fit:cover;border-radius:18px;background:var(--in)';
     mediaUrl(m.im).then(u=>im.src=u).catch(()=>{});
     const d=E('button','lnk','Eliminar');two(d,'Eliminar',()=>{d.disabled=true;db.doc('gallery/'+m.id).delete().catch(()=>{d.disabled=false})});
-    w.append(im,E('div','mut',(i+1)+' / '+items.length+(m.cap?' · '+m.cap:'')),d);row.appendChild(w);
+    if(!ADM)d.hidden=true;w.append(im,E('div','mut',(i+1)+' / '+items.length+(m.cap?' · '+m.cap:'')),d);row.appendChild(w);
   });
   $('gl').replaceChildren(items.length?row:E('p','mut','Aún no hay fotos.'));
 }
@@ -570,7 +577,7 @@ async function voiceRender(docs){
     const p=E('button','btn','▶ Cargar y escuchar');p.style.marginTop='6px';
     p.onclick=async()=>{p.disabled=true;p.textContent='Cargando…';try{a.src=await mediaUrl(m.au);p.hidden=true;a.hidden=false;a.play()}catch(e){p.disabled=false;p.textContent='No se pudo cargar'}};
     const d=E('button','lnk','Eliminar');two(d,'Eliminar',()=>{d.disabled=true;db.doc('voices/'+s.id).delete().catch(()=>{d.disabled=false})});
-    r.append(p,a,d);box.appendChild(r);
+    if(!ADM)d.hidden=true;r.append(p,a,d);box.appendChild(r);
   }
   $('vl').replaceChildren(box.children.length?box:E('p','mut','Aún no hay mensajes de voz.'));
 }
@@ -593,62 +600,86 @@ $('vr').onclick=async()=>{
     mr.start();$('vr').textContent='■ Detener y guardar';$('vs').textContent='Grabando…';
   }catch(e){$('vs').textContent='No pude usar el micrófono. Revisa el permiso del navegador.'}
 };
+const myS=()=>(ME&&SPS[ME.id])||(ADM?LEG:null);
+const theirs=()=>{const k=Object.keys(SPS).find(i=>!ME||i!==ME.id);if(k)return Object.assign({},SPS[k],{oid:k});if(!ADM&&LEG)return Object.assign({},LEG,{oid:LEG.owner});return null};
+const otherName=()=>prof?(ADM?prof.b:prof.a):'tu pareja';
 function renderSurprise(){
   const b=$('sp');b.replaceChildren(E('h2','','Una última sorpresa'));
-  if(!SP){b.append(E('p','mut','Prepara preguntas sobre ustedes y un vale especial para quien llegue hasta el final.'));const c=E('button','btn','Crear sorpresa');c.onclick=editSurprise;b.appendChild(c);return}
-  b.append(E('p','mut','¿Pensabas que el regalo había terminado? Todavía hay algo preparado…'));
-  const g=E('button','btn','Descubrir la sorpresa ♥');g.onclick=playSurprise;
-  const e=E('button','lnk','Editar sorpresa');e.style.marginLeft='12px';e.onclick=editSurprise;
-  b.append(g,e);
+  if(!ME){b.append(E('p','mut','Cargando…'));return}
+  const on=otherName(),mine=myS(),t=theirs();
+  const h1=E('div','mut','Mi sorpresa para '+on);h1.style.margin='4px 0 8px';
+  const ce=E('button','btn',mine?'Editar mi sorpresa':'Crear mi sorpresa');ce.onclick=editSurprise;
+  b.append(h1,ce);
+  if(mine){
+    const u=ATT[ME.id]||0;
+    b.append(E('p','mut',on+' ha usado '+u+' de 2 intentos.'));
+    if(ADM&&u>0){const rs=E('button','lnk','Reiniciar sus intentos');rs.onclick=()=>db.doc('attempts/'+ME.id).delete().catch(()=>{rs.textContent='No se pudo'});b.appendChild(rs)}
+  }
+  const h2=E('div','mut',on+' preparó para ti');h2.style.cssText='margin:22px 0 8px;padding-top:16px;border-top:1px solid var(--bd)';
+  b.appendChild(h2);
+  if(!t){b.append(E('p','mut','Aún no hay una sorpresa para ti.'));return}
+  const used=ATT[t.oid]||0;
+  if(used>=2){b.append(E('p','','Se acabaron los intentos 💔'));return}
+  const g=E('button','btn','Descubrir la sorpresa ♥');g.onclick=()=>playSurprise(t);
+  b.append(g,E('p','mut','Tienes '+(2-used)+' intento'+(2-used===1?'':'s')+'.'));
 }
 function editSurprise(){
-  const b=$('sp');b.replaceChildren(E('h2','','Sorpresa final'));
+  const b=$('sp'),m0=myS();b.replaceChildren(E('h2','','Mi sorpresa para '+otherName()));
   const qs=[];
   for(let n=0;n<3;n++){
-    const s=(SP&&SP.q[n])||{q:'',o:['','',''],r:0};
+    const s=(m0&&m0.q[n])||{q:'',o:['','',''],r:0};
     const qi=E('input');qi.placeholder='Pregunta '+(n+1);qi.value=s.q;qi.maxLength=140;
     const ops=[0,1,2].map(k=>{const o=E('input');o.placeholder='Opción '+(k+1);o.value=s.o[k]||'';o.maxLength=100;return o});
     const sel=E('select');[0,1,2].forEach(k=>{const op=E('option','','Correcta: opción '+(k+1));op.value=k;sel.appendChild(op)});sel.value=s.r;
     b.append(qi,...ops,sel);qs.push({qi,ops,sel});
   }
-  const v=E('input');v.placeholder='Vale: Vale por una cena en…';v.maxLength=200;v.value=SP?SP.v:'';
-  const f=E('input');f.placeholder='Firma (tu nombre)';f.maxLength=60;f.value=SP?SP.f:(prof?prof.a:'');
+  const v=E('input');v.placeholder='Vale: Vale por una cena en…';v.maxLength=200;v.value=m0?m0.v:'';
+  const f=E('input');f.placeholder='Firma (tu nombre)';f.maxLength=60;f.value=m0?m0.f:(prof?(ADM?prof.a:prof.b):'');
   const sv=E('button','btn','Guardar sorpresa'),cn=E('button','lnk','Cancelar');cn.style.marginLeft='12px';cn.onclick=renderSurprise;
   sv.onclick=async()=>{
     const q=qs.map(x=>({q:x.qi.value.trim(),o:x.ops.map(o=>o.value.trim()),r:+x.sel.value})).filter(x=>x.q&&x.o.every(Boolean));
     if(!q.length||!v.value.trim()){sv.textContent='Falta una pregunta completa y el vale';setTimeout(()=>sv.textContent='Guardar sorpresa',3000);return}
     sv.disabled=true;
-    try{await db.doc('vault/surprise').set({t:0,c:await sealJ({q,v:v.value.trim(),f:f.value.trim()})})}catch(e){sv.disabled=false;sv.textContent='Error, reintenta'}
+    try{await db.doc('surprises/'+ME.id).set({t:0,c:await sealJ({q,v:v.value.trim(),f:f.value.trim()})})}catch(e){sv.disabled=false;sv.textContent='Error, reintenta'}
   };
   b.append(v,f,sv,cn);
 }
-function playSurprise(){
+function playSurprise(t){
   const o=E('div'),w=E('div','wrap');
   o.style.cssText='position:fixed;inset:0;z-index:100;overflow:auto;background:var(--bg);color:var(--tx)';
   o.appendChild(w);document.body.appendChild(o);
-  let i=0;
+  let i=0,used=ATT[t.oid]||0;
   const show=()=>{
     w.replaceChildren();
-    if(i>=SP.q.length){
-      const v=E('div','card','♥ '+SP.v);v.style.cssText='margin-top:28px;border-style:dashed;text-align:center;font:20px/1.5 Georgia,serif';
-      const f=E('div','mut','— '+SP.f);f.style.cssText='text-align:center;margin:10px 0 20px';
+    const x=E('button','lnk','Cerrar');x.onclick=()=>o.remove();
+    if(used>=2){w.append(E('h1','','Se acabaron los intentos 💔'),E('p','mut','Esta vez no se pudo.'),x);return}
+    if(i>=t.q.length){
+      const v=E('div','card','♥ '+t.v);v.style.cssText='margin-top:28px;border-style:dashed;text-align:center;font:20px/1.5 Georgia,serif';
+      const f=E('div','mut','— '+t.f);f.style.cssText='text-align:center;margin:10px 0 20px';
       const c=E('button','btn','Volver');c.onclick=()=>o.remove();
       w.append(E('h1','','Lo has conseguido ♥'),v,f,c);return;
     }
-    const q=SP.q[i];
-    w.append(E('div','mut','Pregunta '+(i+1)+' de '+SP.q.length),E('h2','',q.q));
-    q.o.forEach((t,k)=>{
-      const b=E('button','chip',t);b.style.cssText='display:block;width:100%;margin:10px 0;text-align:left;padding:14px;border-radius:14px';
-      b.onclick=()=>{if(k===q.r){i++;show()}else{b.textContent=t+' ✗ intenta otra vez';b.disabled=true}};
+    const q=t.q[i],left=2-used;
+    w.append(E('div','mut','Pregunta '+(i+1)+' de '+t.q.length+' · te quedan '+left+' intento'+(left===1?'':'s')),E('h2','',q.q));
+    q.o.forEach((txt,k)=>{
+      const b=E('button','chip',txt);b.style.cssText='display:block;width:100%;margin:10px 0;text-align:left;padding:14px;border-radius:14px';
+      b.onclick=async()=>{
+        if(k===q.r){i++;show();return}
+        used++;b.textContent=txt+' ✗';b.disabled=true;
+        try{await db.doc('attempts/'+t.oid).set({t:0,c:await sealJ({n:used})})}catch(e){}
+        if(used>=2)setTimeout(show,700);
+      };
       w.appendChild(b);
     });
-    const x=E('button','lnk','Cerrar');x.onclick=()=>o.remove();w.appendChild(x);
+    w.appendChild(x);
   };
   show();
 }
 function startExtras(){
-  db.doc('vault/letter').onSnapshot(async s=>{try{LT=s.exists?await openJ(s.data().c):null}catch(e){LT=null}editL=false;renderLetter()},()=>{});
-  db.doc('vault/surprise').onSnapshot(async s=>{try{SP=s.exists?await openJ(s.data().c):null}catch(e){SP=null}renderSurprise()},()=>{});
+  db.doc('vault/letter').onSnapshot(async s=>{try{LT=s.exists?await openJ(s.data().c):null;LTowner=s.owner}catch(e){LT=null}editL=false;renderLetter()},()=>{});
+  db.doc('vault/surprise').onSnapshot(async s=>{try{LEG=s.exists?Object.assign(await openJ(s.data().c),{owner:s.owner}):null}catch(e){LEG=null}renderSurprise()},()=>{});
+  db.collection('surprises').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{m[s.id]=await openJ(s.data().c)}catch(e){}}SPS=m;renderSurprise()},()=>{});
+  db.collection('attempts').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{m[s.id]=(await openJ(s.data().c)).n||0}catch(e){}}ATT=m;renderSurprise()},()=>{});
   db.collection('gallery').orderBy('t','desc').limit(100).onSnapshot(q=>galRender(q.docs),()=>{});
   db.collection('voices').orderBy('t','desc').limit(100).onSnapshot(q=>voiceRender(q.docs),()=>{});
 }
@@ -1054,13 +1085,13 @@ async function feed(docs){last=docs;
     }
     const b=document.createElement('button');b.className='lnk';b.textContent='Eliminar';
     let sure=false;b.onclick=()=>{if(!sure){sure=true;b.textContent='¿Seguro? Toca otra vez para eliminar';setTimeout(()=>{sure=false;b.textContent='Eliminar'},4000);return}b.disabled=true;db.doc('moments/'+s.id).delete().catch(()=>{b.disabled=false;sure=false;b.textContent='No se pudo eliminar. Intenta de nuevo'})};
-    const eb=document.createElement('button');eb.className='lnk';eb.textContent='Editar';eb.style.marginRight='16px';eb.onclick=()=>editForm(d,s,m);d.append(eb,b);box.appendChild(d);
+    const eb=document.createElement('button');eb.className='lnk';eb.textContent='Editar';eb.style.marginRight='16px';eb.onclick=()=>editForm(d,s,m);if(!ME||s.owner!==ME.id)eb.hidden=true;if(!ADM)b.hidden=true;d.append(eb,b);box.appendChild(d);
   }
   if(v===ver){$('ft').replaceChildren(box);calRender(en);hoyRender(en)}
 }
 function start(){startMusic();startExtras();
   db.doc('vault/profile').onSnapshot(async s=>{
-    try{prof=s.exists?await openJ(s.data().c):null}catch(e){prof=null}
+    try{prof=s.exists?await openJ(s.data().c):null;pOwner=s.owner}catch(e){prof=null}
     applyTheme(prof&&prof.th);applyFont(prof&&prof.fo);head();if(!prof)$('pf').hidden=false;
   },()=>{});
   db.collection('moments').orderBy('t','desc').limit(200).onSnapshot(q=>feed(q.docs),()=>st('No se pudo leer los momentos.'));

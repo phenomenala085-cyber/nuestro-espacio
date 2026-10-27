@@ -612,7 +612,7 @@ function renderSurprise(){
   b.append(h1,ce);
   if(mine){
     const u=ATT[ME.id]||0;
-    b.append(E('p','mut',on+' ha usado '+u+' de 2 intentos.'));
+    b.append(E('p','mut',on+' ha usado '+u+' de 2 intentos. Tu sorpresa tiene '+mine.q.length+' preguntas.'));
     if(ADM&&u>0){const rs=E('button','lnk','Reiniciar sus intentos');rs.onclick=()=>db.doc('attempts/'+ME.id).delete().catch(()=>{rs.textContent='No se pudo'});b.appendChild(rs)}
   }
   const h2=E('div','mut',on+' preparó para ti');h2.style.cssText='margin:22px 0 8px;padding-top:16px;border-top:1px solid var(--bd)';
@@ -621,17 +621,21 @@ function renderSurprise(){
   const used=ATT[t.oid]||0;
   if(used>=2){b.append(E('p','','Se acabaron los intentos 💔'));return}
   const g=E('button','btn','Descubrir la sorpresa ♥');g.onclick=()=>playSurprise(t);
-  b.append(g,E('p','mut','Tienes '+(2-used)+' intento'+(2-used===1?'':'s')+'.'));
+  b.append(g,E('p','mut','Debes acertar al menos el 80 % ('+Math.ceil(t.q.length*.8)+' de '+t.q.length+' preguntas). Tienes '+(2-used)+' intento'+(2-used===1?'':'s')+'.'));
 }
 function editSurprise(){
   const b=$('sp'),m0=myS();b.replaceChildren(E('h2','','Mi sorpresa para '+otherName()));
+  b.append(E('p','mut','Hasta 10 preguntas. Para ver la sorpresa hay que acertar al menos el 80 % (con 10 preguntas, 8). Las que dejes vacías no cuentan.'));
+  const IDEAS=['Ej: ¿Dónde fue nuestro primer beso?','Ej: ¿Quién dijo “te quiero” primero?','Ej: ¿Cuándo supimos que iba en serio?','Ej: ¿Dónde nos conocimos?','Ej: ¿En qué fecha empezamos?','Ej: ¿Cuál es mi comida favorita?','Ej: ¿A dónde fue nuestra primera salida?','Ej: ¿Qué canción nos representa?','Ej: ¿Cuál es mi mayor sueño?','Ej: ¿Qué hago cuando estoy nervioso/a?'];
   const qs=[];
-  for(let n=0;n<3;n++){
+  for(let n=0;n<10;n++){
     const s=(m0&&m0.q[n])||{q:'',o:['','',''],r:0};
-    const qi=E('input');qi.placeholder='Pregunta '+(n+1);qi.value=s.q;qi.maxLength=140;
+    const dt=E('details'),sm=E('summary','','Pregunta '+(n+1)+(s.q?' · '+s.q.slice(0,30):''));
+    sm.style.cssText='cursor:pointer;padding:8px 0;font-weight:600';dt.open=!!s.q||n<3;
+    const qi=E('input');qi.placeholder=IDEAS[n];qi.value=s.q;qi.maxLength=140;
     const ops=[0,1,2].map(k=>{const o=E('input');o.placeholder='Opción '+(k+1);o.value=s.o[k]||'';o.maxLength=100;return o});
     const sel=E('select');[0,1,2].forEach(k=>{const op=E('option','','Correcta: opción '+(k+1));op.value=k;sel.appendChild(op)});sel.value=s.r;
-    b.append(qi,...ops,sel);qs.push({qi,ops,sel});
+    dt.append(sm,qi,...ops,sel);b.appendChild(dt);qs.push({qi,ops,sel});
   }
   const v=E('input');v.placeholder='Vale: Vale por una cena en…';v.maxLength=200;v.value=m0?m0.v:'';
   const f=E('input');f.placeholder='Firma (tu nombre)';f.maxLength=60;f.value=m0?m0.f:(prof?(ADM?prof.a:prof.b):'');
@@ -648,30 +652,34 @@ function playSurprise(t){
   const o=E('div'),w=E('div','wrap');
   o.style.cssText='position:fixed;inset:0;z-index:100;overflow:auto;background:var(--bg);color:var(--tx)';
   o.appendChild(w);document.body.appendChild(o);
-  let i=0,used=ATT[t.oid]||0;
+  const N=t.q.length,need=Math.ceil(N*.8);
+  let i=0,ok=0,used=ATT[t.oid]||0;
+  const close=()=>{const x=E('button','lnk','Cerrar');x.onclick=()=>o.remove();return x};
   const show=()=>{
     w.replaceChildren();
-    const x=E('button','lnk','Cerrar');x.onclick=()=>o.remove();
-    if(used>=2){w.append(E('h1','','Se acabaron los intentos 💔'),E('p','mut','Esta vez no se pudo.'),x);return}
-    if(i>=t.q.length){
-      const v=E('div','card','♥ '+t.v);v.style.cssText='margin-top:28px;border-style:dashed;text-align:center;font:20px/1.5 Georgia,serif';
-      const f=E('div','mut','— '+t.f);f.style.cssText='text-align:center;margin:10px 0 20px';
-      const c=E('button','btn','Volver');c.onclick=()=>o.remove();
-      w.append(E('h1','','Lo has conseguido ♥'),v,f,c);return;
+    if(used>=2){w.append(E('h1','','Se acabaron los intentos 💔'),E('p','mut','Esta vez no se pudo.'),close());return}
+    if(i>=N){
+      if(ok>=need){
+        const v=E('div','card','♥ '+t.v);v.style.cssText='margin-top:28px;border-style:dashed;text-align:center;font:20px/1.5 Georgia,serif';
+        const f=E('div','mut','— '+t.f);f.style.cssText='text-align:center;margin:10px 0 20px';
+        const c=E('button','btn','Volver');c.onclick=()=>o.remove();
+        w.append(E('h1','','Lo has conseguido ♥'),E('p','mut','Acertaste '+ok+' de '+N+'.'),v,f,c);return;
+      }
+      used++;
+      sealJ({n:used,v:2}).then(c=>db.doc('attempts/'+t.oid).set({t:0,c})).catch(()=>{});
+      w.append(E('h1','','Casi…'),E('p','mut','Acertaste '+ok+' de '+N+'. Necesitabas al menos '+need+' (80 %).'));
+      if(used<2){const r=E('button','btn','Intentar de nuevo');r.onclick=()=>{i=0;ok=0;show()};w.append(r,E('p','mut','Te queda '+(2-used)+' intento.'))}
+      else w.append(E('p','','Se acabaron los intentos 💔'));
+      w.append(close());return;
     }
-    const q=t.q[i],left=2-used;
-    w.append(E('div','mut','Pregunta '+(i+1)+' de '+t.q.length+' · te quedan '+left+' intento'+(left===1?'':'s')),E('h2','',q.q));
+    const q=t.q[i];
+    w.append(E('div','mut','Pregunta '+(i+1)+' de '+N+' · intento '+(used+1)+' de 2'),E('h2','',q.q));
     q.o.forEach((txt,k)=>{
       const b=E('button','chip',txt);b.style.cssText='display:block;width:100%;margin:10px 0;text-align:left;padding:14px;border-radius:14px';
-      b.onclick=async()=>{
-        if(k===q.r){i++;show();return}
-        used++;b.textContent=txt+' ✗';b.disabled=true;
-        try{await db.doc('attempts/'+t.oid).set({t:0,c:await sealJ({n:used})})}catch(e){}
-        if(used>=2)setTimeout(show,700);
-      };
+      b.onclick=()=>{if(k===q.r)ok++;i++;show()};
       w.appendChild(b);
     });
-    w.appendChild(x);
+    w.appendChild(close());
   };
   show();
 }
@@ -679,7 +687,7 @@ function startExtras(){
   db.doc('vault/letter').onSnapshot(async s=>{try{LT=s.exists?await openJ(s.data().c):null;LTowner=s.owner}catch(e){LT=null}editL=false;renderLetter()},()=>{});
   db.doc('vault/surprise').onSnapshot(async s=>{try{LEG=s.exists?Object.assign(await openJ(s.data().c),{owner:s.owner}):null}catch(e){LEG=null}renderSurprise()},()=>{});
   db.collection('surprises').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{m[s.id]=await openJ(s.data().c)}catch(e){}}SPS=m;renderSurprise()},()=>{});
-  db.collection('attempts').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{m[s.id]=(await openJ(s.data().c)).n||0}catch(e){}}ATT=m;renderSurprise()},()=>{});
+  db.collection('attempts').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{const a=await openJ(s.data().c);m[s.id]=a.v===2?(a.n||0):0}catch(e){}}ATT=m;renderSurprise()},()=>{});
   db.collection('gallery').orderBy('t','desc').limit(100).onSnapshot(q=>galRender(q.docs),()=>{});
   db.collection('voices').orderBy('t','desc').limit(100).onSnapshot(q=>voiceRender(q.docs),()=>{});
 }

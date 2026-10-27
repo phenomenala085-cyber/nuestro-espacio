@@ -283,6 +283,33 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <p class="mut" id="cds" style="margin:8px 0 0"></p>
 </details>
 </div>
+<div class="card" id="todo">
+<h2>Cosas por hacer juntos</h2>
+<div id="tdp" class="mut"></div>
+<div id="tdl"></div>
+<input id="tdi" maxlength="120" placeholder="Ej: Ver el amanecer desde un mirador" style="margin-top:10px">
+<button class="btn" id="tdb" style="margin-top:6px">＋ Agregar</button>
+<p class="mut" id="tds" style="margin:8px 0 0"></p>
+</div>
+<div class="card" id="qd">
+<h2>Pregunta del día</h2>
+<div id="qdq" style="font:19px/1.45 Georgia,serif;margin-bottom:10px"></div>
+<textarea id="qda" placeholder="Tu respuesta…" style="min-height:90px"></textarea>
+<button class="btn" id="qdb" style="margin-top:6px">Guardar mi respuesta</button>
+<p class="mut" id="qds" style="margin:8px 0 0"></p>
+<div id="qdl"></div>
+</div>
+<div class="card" id="cap">
+<h2>Cápsula del tiempo ⏳</h2>
+<div id="capl"></div>
+<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--ac);padding:6px 0">＋ Escribir una cápsula</summary>
+<input id="cpt" maxlength="80" placeholder="Título (ej: Para cuando cumplamos un año)" style="margin-top:8px">
+<textarea id="cpm" placeholder="Tu mensaje…" style="margin-top:8px;min-height:120px"></textarea>
+<label style="margin-top:8px">Se abre el<input id="cpd" type="date"></label>
+<button class="btn" id="cpb">Guardar cápsula</button>
+<p class="mut" id="cps" style="margin:8px 0 0"></p>
+</details>
+</div>
 <div class="card" id="calc">
 <h2>Calendario de momentos</h2>
 <input id="cq" placeholder="Buscar por nombre…" style="margin-bottom:10px">
@@ -715,6 +742,10 @@ function startExtras(){
   db.collection('voices').orderBy('t','desc').limit(100).onSnapshot(q=>voiceRender(q.docs),()=>{});
   db.collection('events').orderBy('t','desc').limit(60).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.id=s.id;a.push(m)}catch(e){}}EV=a;cdRender()},()=>{});
   db.collection('thinking').orderBy('t','desc').limit(30).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.id=s.id;m.t=s.data().t;m.owner=s.owner;a.push(m)}catch(e){}}PK=a;pkRender()},()=>{});
+  db.collection('todos').orderBy('t','desc').limit(200).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.id=s.id;a.push(m)}catch(e){}}TD=a;tdRender()},()=>{});
+  db.collection('todone').orderBy('t','desc').limit(200).onSnapshot(async q=>{const m={};for(const s of q.docs){try{const o=await openJ(s.data().c);m[s.id]={by:o.by,t:s.data().t}}catch(e){}}TDN=m;tdRender()},()=>{});
+  db.collection('qday').orderBy('t','desc').limit(300).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.owner=s.owner;m.id=s.id;a.push(m)}catch(e){}}QD=a;qdRender()},()=>{});
+  db.collection('capsules').orderBy('t','desc').limit(100).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.owner=s.owner;m.id=s.id;a.push(m)}catch(e){}}CP=a;capRender()},()=>{});
 }
 let calE=[],calInit=false;const calOpen=new Set();
 function calRender(en){
@@ -745,7 +776,7 @@ function calRender(en){
 }
 $('cl').addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k){e.target.open?calOpen.add(k):calOpen.delete(k)}},true);
 $('cq').addEventListener('input',()=>calRender(calE));
-[['Pensando en ti','pk'],['Cuenta regresiva','cd'],['Calendario','calc'],['Nuevo momento','nm'],['Galería','gcard'],['Carta','car'],['Voz','vcard'],['Música','mu'],['Sorpresa','sp'],['Línea de tiempo','ft'],['Seguridad','sec']].forEach(([t,id])=>{
+[['Pensando en ti','pk'],['Cuenta regresiva','cd'],['Por hacer','todo'],['Pregunta del día','qd'],['Cápsulas','cap'],['Calendario','calc'],['Nuevo momento','nm'],['Galería','gcard'],['Carta','car'],['Voz','vcard'],['Música','mu'],['Sorpresa','sp'],['Línea de tiempo','ft'],['Seguridad','sec']].forEach(([t,id])=>{
   const b=E('button','chip',t);b.style.flex='none';
   b.onclick=()=>{const el=$(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
   $('nav').appendChild(b);
@@ -1030,6 +1061,96 @@ $('rsF').onchange=async e=>{
     const n=await window.__restore(rows);
     S.textContent='Listo: se agregaron '+n+' registros que faltaban (la copia traía '+rows.length+'). Lo que ya existía no se tocó. Las fotos, videos y canciones no van en la copia. Recarga la página para verlos.';
   }catch(er){S.textContent='No se pudo: '+((er&&er.message)||'error')}
+};
+let TD=[],TDN={},QD=[],CP=[];const capShown=new Set();
+const QB=['¿Cuál es el recuerdo más bonito que tienes de nosotros hasta hoy?','¿Qué fue lo primero que pensaste de mí cuando me conociste?','¿Qué detalle pequeño mío te hace sonreír sin que yo lo note?','Si mañana pudiéramos viajar a cualquier lugar, ¿a dónde iríamos?','¿Qué canción te recuerda a mí y por qué?','¿Cuál fue tu momento favorito de esta semana?','¿Qué te gustaría que hiciéramos más seguido?','¿Cómo imaginas nuestro domingo perfecto?','¿Qué comida compartiríamos todos los días sin cansarnos?','¿Qué te da más calma cuando tienes un mal día?','¿Cuál es el mejor consejo que alguien te ha dado?','¿Qué sueño tienes que todavía no le has contado a nadie?','¿Qué te hizo reír tanto que casi lloras?','Si tuviéramos una casa juntos, ¿cómo sería nuestra sala?','¿Qué película o serie veríamos abrazados esta noche?','¿Qué es lo que más admiras de mí?','¿Qué cosa nueva te gustaría aprender conmigo?','¿Cuándo sentiste por primera vez que esto era especial?','¿Qué apodo cariñoso me pondrías hoy?','¿Qué te gustaría que recordemos juntos dentro de diez años?','¿En qué momento del día piensas más en mí?','¿Qué lugar de tu infancia te gustaría enseñarme?','¿Qué hago que te hace sentir cuidado o cuidada?','¿Qué miedo te gustaría que enfrentemos juntos?','¿Cuál es tu plan perfecto para una noche tranquila?','Si nuestra historia fuera un libro, ¿cómo se llamaría tu capítulo favorito?','¿Qué es lo más valiente que has hecho por amor?','¿Qué te gustaría agradecerme hoy?','¿Qué tradición nos inventaríamos solo para los dos?','¿Qué es lo que más extrañas de mí cuando no estamos juntos?','¿Qué te hace sentir más tú cuando estás conmigo?','¿Qué regalo que no cueste dinero te haría muy feliz?','¿Qué olor te recuerda a nosotros?','¿En qué lugar te gusta más que estemos juntos?','¿Qué cosa tonta nos hace reír solo a nosotros?','¿Qué crees que hemos aprendido el uno del otro?','¿Cómo te gustaría celebrar nuestro próximo aniversario?','¿Qué meta quieres lograr este año y cómo puedo ayudarte?','¿Qué significa para ti sentirte en casa?','¿Qué frase te gustaría escucharme decir más seguido?','¿Qué parte de nuestra rutina es tu favorita?','¿Qué pequeño gesto podríamos hacer hoy para sentirnos cerca?','¿Cuál es tu recuerdo favorito de un día cualquiera a mi lado?','¿Qué pasatiempo tuyo te gustaría que compartiéramos?','¿Qué es lo que más te ilusiona de lo que viene?','¿Qué cualidad tuya quisieras que yo viera más?','¿Cuál es tu forma favorita de que te demuestre cariño?','Si pudieras pausar un momento nuestro para siempre, ¿cuál sería?','¿Qué pregunta te gustaría que yo te hiciera?','¿Qué te hace sentir orgullo de nosotros?','¿Cuál es el mejor abrazo que recuerdas y por qué?','¿Qué harías hoy si no tuvieras ninguna obligación?','¿Qué parte de mi forma de ser te sorprendió con el tiempo?','¿Qué te gustaría que nunca cambie entre nosotros?','¿Qué le dirías a quienes éramos el día que nos conocimos?','¿Cuál es tu antojo favorito para compartir?','¿Qué rincón del mundo te gustaría descubrir de mi mano?','¿Qué te hace sentir tranquilidad cuando estoy cerca?','¿Qué te gustaría escribirme en una carta dentro de un año?','¿Con qué palabra describirías lo que sientes hoy por mí?'];
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const qIdx=ds=>{const [y,m,d]=ds.split('-').map(Number);return Math.floor(Date.UTC(y,m-1,d)/864e5)%QB.length};
+const myName=()=>(prof?(ADM?prof.a:prof.b):'')||'';
+const fecha=ds=>new Date(ds+'T00:00:00').toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});
+function tdRender(){
+  const box=E('div'),n=TD.length,dn=TD.filter(x=>TDN[x.id]).length;
+  $('tdp').textContent=n?dn+' de '+n+' cumplidas':'';
+  [...TD.filter(x=>!TDN[x.id]),...TD.filter(x=>TDN[x.id])].forEach(x=>{
+    const done=TDN[x.id],r=E('div');
+    r.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--bd)';
+    const c=E('button','chip',done?'☑':'☐');c.style.cssText='padding:2px 10px;font-size:18px;flex:none';
+    if(done)c.disabled=true;
+    else c.onclick=async()=>{c.disabled=true;try{await db.doc('todone/'+x.id).set({t:Date.now(),c:await sealJ({by:myName()})})}catch(e){c.disabled=false;c.textContent='✗'}};
+    const t=E('div');t.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere';
+    const tt=E('div','',x.ti);if(done){tt.style.textDecoration='line-through';tt.style.opacity='.6'}
+    t.appendChild(tt);
+    if(done)t.appendChild(E('div','mut','✓ '+(done.by||'Cumplida')+' · '+new Date(done.t).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'})));
+    r.append(c,t);
+    if(ADM){
+      const z=E('button','lnk','Eliminar');two(z,'Eliminar',()=>{z.disabled=true;Promise.all([db.doc('todos/'+x.id).delete(),done?db.doc('todone/'+x.id).delete():null]).catch(()=>{z.disabled=false})});
+      r.appendChild(z);
+      if(done){const u=E('button','lnk','Desmarcar');u.onclick=()=>db.doc('todone/'+x.id).delete().catch(()=>{});r.appendChild(u)}
+    }
+    box.appendChild(r);
+  });
+  $('tdl').replaceChildren(n?box:E('p','mut','Aún no hay planes. ¡Agrega el primero!'));
+}
+$('tdb').onclick=async()=>{
+  const ti=$('tdi').value.trim(),S=$('tds');if(!ti)return;
+  $('tdb').disabled=true;
+  try{await db.collection('todos').add({t:Date.now(),c:await sealJ({ti})});$('tdi').value='';S.textContent=''}
+  catch(e){S.textContent='No se pudo: '+((e&&e.message)||'error')}
+  $('tdb').disabled=false;
+};
+function qdRender(){
+  const td=todayStr();$('qdq').textContent=QB[qIdx(td)];
+  const mine=QD.find(x=>x.d===td&&ME&&x.owner===ME.id),oth=QD.find(x=>x.d===td&&ME&&x.owner!==ME.id);
+  const ta=$('qda');if(mine&&!ta.value&&document.activeElement!==ta)ta.value=mine.a;
+  const on=prof?(ADM?prof.b:prof.a):'Tu pareja',box=E('div');
+  box.append(E('p','mut',mine?'Tu respuesta está guardada ✓':'Aún no respondes.'),E('p','mut',oth?on+' ya respondió ✓':on+' aún no responde.'));
+  const pair=(a,b)=>{const w=E('div');w.style.cssText='display:grid;gap:10px;margin:8px 0';[a,b].forEach(x=>{const c=E('div');c.style.cssText='padding:10px 12px;border-radius:14px;background:var(--in);overflow-wrap:anywhere;white-space:pre-wrap';c.append(E('div','mut',x.by||'…'),E('div','',x.a));w.appendChild(c)});return w};
+  if(mine&&oth)box.appendChild(pair(mine,oth));
+  else if(mine||oth)box.appendChild(E('p','mut','Cuando los dos respondan, se mostrarán las respuestas aquí.'));
+  const past={};
+  QD.filter(x=>x.d&&x.d!==td).forEach(x=>{(past[x.d]=past[x.d]||[]).push(x)});
+  const days=Object.keys(past).filter(d=>past[d].length>=2).sort().reverse().slice(0,10);
+  if(days.length){
+    const dt=E('details'),sm=E('summary','','Respuestas anteriores');sm.style.cssText='cursor:pointer;color:var(--ac);padding:8px 0';dt.appendChild(sm);
+    days.forEach(d=>{const h3=E('div','',QB[qIdx(d)]);h3.style.cssText='font:600 16px/1.4 Georgia,serif;margin-top:10px';dt.append(E('div','mut',fecha(d)),h3,pair(past[d][0],past[d][1]))});
+    box.appendChild(dt);
+  }
+  $('qdl').replaceChildren(box);
+}
+$('qdb').onclick=async()=>{
+  const a=$('qda').value.trim(),S=$('qds');if(!a||!ME)return;
+  $('qdb').disabled=true;
+  try{await db.doc('qday/'+todayStr()+'-'+ME.id).set({t:Date.now(),c:await sealJ({d:todayStr(),a,by:myName()})});S.textContent='Guardado ♥'}
+  catch(e){S.textContent='No se pudo: '+((e&&e.message)||'error')}
+  $('qdb').disabled=false;setTimeout(()=>{S.textContent=''},2500);
+};
+function capRender(){
+  const box=E('div'),now=new Date();
+  CP.slice().sort((a,b)=>a.open.localeCompare(b.open)).forEach(x=>{
+    const open=new Date(x.open+'T00:00:00')<=now,mine=ME&&x.owner===ME.id,r=E('div');
+    r.style.cssText='padding:10px 0;border-top:1px solid var(--bd)';
+    r.append(E('div','',(open?'🎉 ':'🔒 ')+(x.ti||'Cápsula')),E('div','mut',(mine?'Escrita por ti':'De '+(x.de||'tu pareja'))+' · '+(open?'se abrió el ':'se abre el ')+fecha(x.open)));
+    const msg=()=>{const m=E('div','',x.tx);m.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;font:17px/1.6 Georgia,serif';return m};
+    if(open)r.appendChild(msg());
+    else if(mine){
+      const v=E('button','lnk',capShown.has(x.id)?'Ocultar lo que escribí':'Ver lo que escribí');
+      v.onclick=()=>{capShown.has(x.id)?capShown.delete(x.id):capShown.add(x.id);capRender()};
+      r.appendChild(v);if(capShown.has(x.id))r.appendChild(msg());
+    }
+    if(ADM){const z=E('button','lnk','Eliminar');z.style.marginLeft='12px';two(z,'Eliminar',()=>{z.disabled=true;db.doc('capsules/'+x.id).delete().catch(()=>{z.disabled=false})});r.appendChild(z)}
+    box.appendChild(r);
+  });
+  $('capl').replaceChildren(CP.length?box:E('p','mut','Aún no hay cápsulas. Escribe un mensaje para abrir en el futuro.'));
+}
+{const tm=new Date();tm.setDate(tm.getDate()+1);$('cpd').min=tm.getFullYear()+'-'+String(tm.getMonth()+1).padStart(2,'0')+'-'+String(tm.getDate()).padStart(2,'0')}
+$('cpb').onclick=async()=>{
+  const ti=$('cpt').value.trim(),tx=$('cpm').value.trim(),d=$('cpd').value,S=$('cps');
+  if(!tx||!d){S.textContent='Escribe el mensaje y elige la fecha.';return}
+  if(new Date(d+'T00:00:00')<=new Date()){S.textContent='Elige una fecha futura.';return}
+  $('cpb').disabled=true;
+  try{await db.collection('capsules').add({t:Date.now(),c:await sealJ({ti,tx,open:d,de:myName()})});$('cpt').value='';$('cpm').value='';$('cpd').value='';S.textContent='Guardada ♥ Se abrirá en la fecha elegida.'}
+  catch(e){S.textContent='No se pudo: '+((e&&e.message)||'error')}
+  $('cpb').disabled=false;
 };
 function songCard(){
   const pa=document.querySelector('#sg audio');if(pa&&(!pa.paused||(pa.currentTime>0&&!pa.ended)))return;const sg=$('sg');sg.textContent='';

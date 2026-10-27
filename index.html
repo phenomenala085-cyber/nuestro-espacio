@@ -121,6 +121,7 @@ body{background-color:var(--bg);background-image:radial-gradient(900px 520px at 
 #nav{background:color-mix(in srgb,var(--bg) 78%,transparent)!important;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 .lnk{color:var(--ac);text-underline-offset:3px}
 input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,select{background:color-mix(in srgb,var(--in) 92%,transparent);border-color:var(--bd)}
+.tagp{display:inline-block;padding:2px 10px;margin:6px 6px 0 0;border-radius:999px;font-size:12px;border:1px solid var(--bd);color:var(--mut)}
 [hidden]{display:none!important}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -264,9 +265,28 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 </div>
 <div class="card" id="hoy" hidden></div>
 <div id="nav" style="display:flex;gap:8px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 8px;margin-top:8px"></div>
+<div class="card" id="pk">
+<h2>Pensando en ti 💗</h2>
+<div id="pkl"></div>
+<input id="pkn" maxlength="160" placeholder="Una nota corta (opcional)" style="margin-top:10px">
+<button class="btn" id="pkb" style="margin-top:6px">💗 Mandar un corazón</button>
+<p class="mut" id="pks" style="margin:8px 0 0"></p>
+</div>
+<div class="card" id="cd">
+<h2>Cuenta regresiva</h2>
+<div id="cdl"></div>
+<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--ac);padding:6px 0">＋ Agregar una fecha</summary>
+<input id="cdt" maxlength="80" placeholder="Ej: Nuestro viaje" style="margin-top:8px">
+<input id="cdd" type="date" style="margin-top:8px">
+<select id="cdr"><option value="none">Solo una vez</option><option value="year">Cada año</option><option value="month">Cada mes</option></select>
+<button class="btn" id="cdb">Agregar</button>
+<p class="mut" id="cds" style="margin:8px 0 0"></p>
+</details>
+</div>
 <div class="card" id="calc">
 <h2>Calendario de momentos</h2>
 <input id="cq" placeholder="Buscar por nombre…" style="margin-bottom:10px">
+<div id="ctg" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
 <div id="cl"></div>
 </div>
 <div class="card" id="gcard">
@@ -291,6 +311,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <label>Título<input id="ti" maxlength="160" placeholder="Nuestra primera cita"></label>
 <label>Lo que quieres recordar<textarea id="tx" style="min-height:180px"></textarea></label>
 <label id="fw">Fotos o videos (videos hasta 10 MB)<input id="fl" type="file" accept="image/*,video/*" multiple></label>
+<div class="mut" style="margin:0 0 6px">Etiquetas (opcional)</div><div id="ntg" style="margin-bottom:10px"></div>
 <label>Canción de este momento (MP3, opcional)<input id="msg" type="file" accept="audio/*"></label>
 <label>Nombre de la canción (opcional)<input id="msn" maxlength="120"></label>
 <label>Letra en español (opcional). Pégala sin tiempos: si tiene las mismas líneas que la inglesa, copio los tiempos al guardar<textarea id="mly1"></textarea></label>
@@ -322,6 +343,7 @@ te amo, hoy y siempre, y de aquí en adelante.</pre>
 <button class="chip" id="sOut">Cerrar sesión</button>
 <button class="chip" id="bkE">⬇ Copia cifrada</button>
 <button class="chip" id="bkT">⬇ Copia legible</button>
+<button class="chip" id="rsB" hidden>⬆ Restaurar copia</button><input type="file" id="rsF" accept=".json,application/json" hidden>
 </div>
 <p class="mut" id="bks" style="margin:10px 0 0"></p>
 </div>
@@ -357,6 +379,7 @@ const db={
 };
 const assets={async upload(b){const id=crypto.randomUUID().replace(/-/g,'');const x=await sb.storage.from('media').upload(id,b,{contentType:'text/plain'});if(x.error)throw x.error;return{id}}};
 window.__me=async()=>{const x=await sb.auth.getUser(),u=x.data&&x.data.user;return u?{id:u.id,email:(u.email||'').toLowerCase()}:null};
+window.__restore=async rows=>{let n=0;for(let i=0;i<rows.length;i+=40){const part=rows.slice(i,i+40).map(r=>({path:r.path,col:r.col||r.path.split('/')[0],t:+r.t||0,data:r.data}));const x=await sb.from('docs').upsert(part,{onConflict:'path',ignoreDuplicates:true}).select('path');if(x.error)throw x.error;n+=(x.data||[]).length}return n};
 window.__out=async()=>{await sb.auth.signOut()};
 window.__all=async()=>{const x=await sb.from('docs').select('path,col,t,data');if(x.error)throw x.error;return x.data};
 window.__blob=async id=>{const x=await sb.storage.from('media').download(id);if(x.error)throw x.error;return x.data.text()};
@@ -513,7 +536,7 @@ const two=(b,l,fn)=>{let s=false;b.onclick=()=>{if(!s){s=true;b.textContent='¿S
 const upl=async(u,ty)=>({id:(await assets.upload(new Blob([await seal(u)],{type:'text/plain'}))).id,ty});
 let LT=null,editL=false,SP=null,mr=null,chunks=[];
 let ME=null,ADM=false,pOwner=null,LTowner=null,SPS={},LEG=null,ATT={};
-function coverPlace(){$('ed').hidden=!!(prof&&pOwner&&ME&&pOwner!==ME.id);if($('ed').hidden)$('pf').hidden=true;ambOn=!prof||prof.amb!==false;document.body.classList.toggle('noamb',!ambOn);animSlot();
+function coverPlace(){$('rsB').hidden=!ADM;cdRender();$('ed').hidden=!!(prof&&pOwner&&ME&&pOwner!==ME.id);if($('ed').hidden)$('pf').hidden=true;ambOn=!prof||prof.amb!==false;document.body.classList.toggle('noamb',!ambOn);animSlot();
   $('plc').textContent=prof&&prof.pl?'📍 Todo empezó en '+prof.pl:'';
   const ci=$('cvi');
   if(prof&&prof.cv)mediaUrl(prof.cv).then(u=>{ci.src=u;ci.hidden=false;domColors(u).then(c=>{if(c){coverAmb=c;if(ambOn&&scrollY<500)setAmb(c);const t=(cur&&cur.auto)?cur:(prof&&prof.th);if(t&&t.auto)applyTheme(t)}})}).catch(()=>{});else ci.hidden=true;
@@ -690,11 +713,13 @@ function startExtras(){
   db.collection('attempts').orderBy('t','desc').limit(10).onSnapshot(async q=>{const m={};for(const s of q.docs){try{const a=await openJ(s.data().c);m[s.id]=a.v===2?(a.n||0):0}catch(e){}}ATT=m;renderSurprise()},()=>{});
   db.collection('gallery').orderBy('t','desc').limit(100).onSnapshot(q=>galRender(q.docs),()=>{});
   db.collection('voices').orderBy('t','desc').limit(100).onSnapshot(q=>voiceRender(q.docs),()=>{});
+  db.collection('events').orderBy('t','desc').limit(60).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.id=s.id;a.push(m)}catch(e){}}EV=a;cdRender()},()=>{});
+  db.collection('thinking').orderBy('t','desc').limit(30).onSnapshot(async q=>{const a=[];for(const s of q.docs){try{const m=await openJ(s.data().c);m.id=s.id;m.t=s.data().t;m.owner=s.owner;a.push(m)}catch(e){}}PK=a;pkRender()},()=>{});
 }
 let calE=[],calInit=false;const calOpen=new Set();
 function calRender(en){
   calE=en;const q=($('cq').value||'').trim().toLowerCase();
-  const list=en.filter(x=>!q||(x.ti||'').toLowerCase().includes(q));
+  const list=en.filter(x=>(!q||(x.ti||'').toLowerCase().includes(q))&&(!curTag||(x.tg||[]).includes(curTag)));
   if(!calInit&&list.length){calInit=true;const t=new Date(list[0].t);calOpen.add('y'+t.getFullYear());calOpen.add('m'+t.getFullYear()+'-'+t.getMonth())}
   const by={};
   list.forEach(x=>{const d=new Date(x.t),y=d.getFullYear(),mo=d.getMonth();by[y]=by[y]||{};(by[y][mo]=by[y][mo]||[]).push(x)});
@@ -720,7 +745,7 @@ function calRender(en){
 }
 $('cl').addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k){e.target.open?calOpen.add(k):calOpen.delete(k)}},true);
 $('cq').addEventListener('input',()=>calRender(calE));
-[['Calendario','calc'],['Nuevo momento','nm'],['Galería','gcard'],['Carta','car'],['Voz','vcard'],['Música','mu'],['Sorpresa','sp'],['Línea de tiempo','ft'],['Seguridad','sec']].forEach(([t,id])=>{
+[['Pensando en ti','pk'],['Cuenta regresiva','cd'],['Calendario','calc'],['Nuevo momento','nm'],['Galería','gcard'],['Carta','car'],['Voz','vcard'],['Música','mu'],['Sorpresa','sp'],['Línea de tiempo','ft'],['Seguridad','sec']].forEach(([t,id])=>{
   const b=E('button','chip',t);b.style.flex='none';
   b.onclick=()=>{const el=$(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
   $('nav').appendChild(b);
@@ -916,6 +941,96 @@ setInterval(()=>{
   if([...document.querySelectorAll('#ap textarea')].some(t=>t.value))return;
   location.reload();
 },30000);
+let EV=[],PK=[],curTag='';
+const TAGS=['Viajes','Citas','Fechas especiales','Familia','Amigos','Recuerdos'];
+const day0=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x};
+function nextOcc(ymd,rep,now){
+  const [y,m,d]=ymd.split('-').map(Number),n=day0(now||new Date());
+  let t=new Date(y,m-1,d);
+  if(rep==='year'){while(t<n)t=new Date(t.getFullYear()+1,m-1,d)}
+  else if(rep==='month'){let k=0;while(t<n&&k<2400){t=new Date(t.getFullYear(),t.getMonth()+1,d);k++}}
+  return t;
+}
+const ago=t=>{const s=(Date.now()-t)/1000;if(s<60)return 'hace un momento';if(s<3600)return 'hace '+Math.floor(s/60)+' min';if(s<86400)return 'hace '+Math.floor(s/3600)+' h';const d=Math.floor(s/86400);return 'hace '+d+(d===1?' día':' días')};
+function cdRender(){
+  const b=$('cdl'),n=day0(new Date()),L=[];
+  if(prof&&prof.d){
+    L.push({n:'Nuestro próximo mesversario',t:nextOcc(prof.d,'month')},{n:'Nuestro aniversario',t:nextOcc(prof.d,'year')});
+    const tog=Math.floor((n-new Date(prof.d+'T00:00:00'))/864e5);
+    if(tog>=0){const nx=(Math.floor(tog/100)+1)*100;L.push({n:nx+' días juntos',t:new Date(+new Date(prof.d+'T00:00:00')+nx*864e5)})}
+  }
+  EV.forEach(e=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(e.d||''))return;const t=nextOcc(e.d,e.rep||'none');if(t>=n)L.push({n:e.ti,t,id:e.id})});
+  L.sort((a,c)=>a.t-c.t);
+  const box=E('div');
+  L.slice(0,8).forEach(x=>{
+    const k=Math.round((x.t-n)/864e5),r=E('div');
+    r.style.cssText='display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--bd)';
+    const nm=E('div','',x.n);nm.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere';
+    const d=E('div','',k===0?'¡Hoy! 🎉':k===1?'Mañana':'Faltan '+k+' días');d.style.cssText='color:var(--ac);font-weight:700;white-space:nowrap';
+    r.append(nm,d);
+    if(x.id&&ADM){const z=E('button','lnk','Eliminar');two(z,'Eliminar',()=>{z.disabled=true;db.doc('events/'+x.id).delete().catch(()=>{z.disabled=false})});r.appendChild(z)}
+    box.appendChild(r);
+  });
+  b.replaceChildren(L.length?box:E('p','mut','Agrega una fecha para empezar la cuenta regresiva.'));
+}
+$('cdb').onclick=async()=>{
+  const ti=$('cdt').value.trim(),d=$('cdd').value,S=$('cds');
+  if(!ti||!d){S.textContent='Escribe el nombre y elige la fecha.';return}
+  $('cdb').disabled=true;
+  try{await db.collection('events').add({t:Date.now(),c:await sealJ({ti,d,rep:$('cdr').value})});$('cdt').value='';S.textContent='Agregado ♥'}
+  catch(e){S.textContent='No se pudo: '+((e&&e.message)||'error')}
+  $('cdb').disabled=false;
+};
+function pkRender(){
+  let seen=0;try{seen=+localStorage.getItem('pkseen')||0}catch(e){}
+  const b=$('pkl'),box=E('div');
+  PK.slice(0,6).forEach(x=>{
+    const mine=ME&&x.owner===ME.id,r=E('div');
+    r.style.cssText='padding:8px 0;border-top:1px solid var(--bd)';
+    const nw=!mine&&x.t>seen;
+    r.append(E('div','',(nw?'🆕 ':'')+'💗 '+(mine?'Tú':(x.de||'Tu pareja'))+' pensó en ti · '+ago(x.t)));
+    if(x.n){const q=E('div','',x.n);q.style.cssText='opacity:.85;margin-top:2px;overflow-wrap:anywhere';r.appendChild(q)}
+    if(ADM){const z=E('button','lnk','Eliminar');two(z,'Eliminar',()=>{z.disabled=true;db.doc('thinking/'+x.id).delete().catch(()=>{z.disabled=false})});r.appendChild(z)}
+    box.appendChild(r);
+  });
+  b.replaceChildren(PK.length?box:E('p','mut','Aún no hay corazones. ¡Manda el primero!'));
+}
+$('pkb').onclick=async()=>{
+  const S=$('pks');$('pkb').disabled=true;
+  try{await db.collection('thinking').add({t:Date.now(),c:await sealJ({n:$('pkn').value.trim(),de:(prof?(ADM?prof.a:prof.b):'')||''})});$('pkn').value='';S.textContent='Enviado 💗'}
+  catch(e){S.textContent='No se pudo: '+((e&&e.message)||'error')}
+  $('pkb').disabled=false;setTimeout(()=>{S.textContent=''},2500);
+};
+new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))setTimeout(()=>{try{localStorage.setItem('pkseen',Date.now())}catch(e){}},3000)},{threshold:.6}).observe($('pk'));
+function tagPick(host,init){
+  const sel=new Set(init||[]);
+  TAGS.forEach(t=>{
+    const b=E('button','chip',t);b.type='button';b.style.cssText='padding:5px 12px;font-size:13px;margin:0 6px 6px 0';
+    const up=()=>{b.style.borderColor=sel.has(t)?'var(--ac)':'';b.style.background=sel.has(t)?'color-mix(in srgb,var(--ac) 22%,transparent)':''};
+    up();b.onclick=()=>{sel.has(t)?sel.delete(t):sel.add(t);up()};host.appendChild(b);
+  });
+  return{get:()=>[...sel],reset:()=>{sel.clear();[...host.children].forEach(c=>{c.style.borderColor='';c.style.background=''})}};
+}
+const ntp=tagPick($('ntg'));
+function applyTag(){document.querySelectorAll('#ft .card.m').forEach(c=>{const tg=(c.dataset.tg||'').split('|');c.hidden=!!curTag&&!tg.includes(curTag)});calRender(calE)}
+['Todas',...TAGS].forEach(t=>{
+  const b=E('button','chip',t);b.style.cssText='padding:5px 12px;font-size:13px';
+  b.onclick=()=>{curTag=t==='Todas'?'':t;[...$('ctg').children].forEach(c=>{c.style.borderColor=c.textContent===(curTag||'Todas')?'var(--ac)':''});applyTag()};
+  $('ctg').appendChild(b);
+});
+$('rsB').onclick=()=>$('rsF').click();
+$('rsF').onchange=async e=>{
+  const f=e.target.files[0],S=$('bks');e.target.value='';
+  if(!f)return;
+  S.textContent='Leyendo la copia…';
+  try{
+    const j=JSON.parse(await f.text());
+    const rows=(j.rows||[]).filter(r=>r&&/^[\w-]+\/[\w-]+$/.test(r.path)&&r.data&&typeof r.data==='object');
+    if(!rows.length)throw new Error('Este archivo no parece una copia cifrada.');
+    const n=await window.__restore(rows);
+    S.textContent='Listo: se agregaron '+n+' registros que faltaban (la copia traía '+rows.length+'). Lo que ya existía no se tocó. Las fotos, videos y canciones no van en la copia. Recarga la página para verlos.';
+  }catch(er){S.textContent='No se pudo: '+((er&&er.message)||'error')}
+};
 function songCard(){
   const pa=document.querySelector('#sg audio');if(pa&&(!pa.paused||(pa.currentTime>0&&!pa.ended)))return;const sg=$('sg');sg.textContent='';
   if(!prof||!prof.sn)return;
@@ -997,7 +1112,7 @@ $('sv').onclick=async()=>{
     let so=null;const sf=$('msg').files[0];
     if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB. Conviértela a MP3.');if(!assets)assets=await window.claude.use('assets');so=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');so.n=$('msn').value.trim()||sf.name.replace(/\.[^.]+$/,'')}
     const ly=lyOf($('mly1').value,$('mly2').value);
-    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get(),so,ly})});$('msg').value='';$('msn').value='';$('mly1').value='';$('mly2').value='';
+    await db.collection('moments').add({t:Date.now(),c:await sealJ({ti,tx,md,cl:np.get(),so,ly,tg:ntp.get()})});ntp.reset();$('msg').value='';$('msn').value='';$('mly1').value='';$('mly2').value='';
     $('ti').value='';$('tx').value='';$('fl').value='';st('Guardado ♥');
   }catch(e){st((e.code?e.code+': ':'')+(e.message||'No se pudo guardar.'))}
   $('sv').disabled=false;
@@ -1045,6 +1160,7 @@ function editForm(d,s,m){
   });
   const ht=document.createElement('div');ht.className='mut';ht.textContent='Colores de este momento';d.appendChild(ht);
   const hc=document.createElement('div');d.appendChild(hc);const pk=picker(hc,m.cl,t=>cardTheme(d,t));
+  const tgl=document.createElement('div');tgl.className='mut';tgl.textContent='Etiquetas';const tgh=document.createElement('div');tgh.style.margin='6px 0 10px';d.append(tgl,tgh);const tpk=tagPick(tgh,m.tg);
   const so0=m.so||null;let soGone=false;
   if(so0){const rs=document.createElement('button');rs.type='button';rs.className='lnk';rs.style.display='block';rs.textContent='Quitar canción: '+so0.n;rs.onclick=()=>{soGone=!soGone;rs.textContent=soGone?'Se quitará la canción (toca para deshacer)':'Quitar canción: '+so0.n};d.appendChild(rs)}
   const sfl=f('Cambiar o agregar canción (MP3)',document.createElement('input'));sfl.type='file';sfl.accept='audio/*';
@@ -1071,7 +1187,7 @@ function editForm(d,s,m){
       let nso=soGone?null:so0;const sf=sfl.files[0];
       if(sf){if(sf.size>35e6)throw new Error('La canción pesa más de 35 MB.');if(!assets)assets=await window.claude.use('assets');nso=await upl(new Uint8Array(await sf.arrayBuffer()),sf.type||'audio/mpeg');nso.n=sf.name.replace(/\.[^.]+$/,'')}
       const nt=dt.value&&dt.value!==d0?new Date(dt.value+'T12:00:00').getTime():t0;
-      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get(),so:nso,ly:lyOf(taES.value,taEN.value)})});
+      await db.doc('moments/'+s.id).set({t:nt,c:await sealJ({ti:ti.value.trim(),tx:tx.value.trim(),md,cl:pk.get(),so:nso,ly:lyOf(taES.value,taEN.value),tg:tpk.get()})});
     }catch(x){er.textContent=(x.code?x.code+': ':'')+(x.message||'No se pudo guardar.');sv.disabled=false}
   };
   d.append(sv,cn,er);
@@ -1080,9 +1196,9 @@ async function feed(docs){last=docs;
   const v=++ver,box=document.createElement('div'),en=[];
   for(const s of docs){
     let m;try{m=await openJ(s.data().c)}catch(e){continue}
-    const d=document.createElement('div');d.className='card m';cardTheme(d,m.cl);d.id='mo-'+s.id;io.observe(d);en.push({id:s.id,t:s.data().t,ti:m.ti,so:!!m.so});
+    const d=document.createElement('div');d.className='card m';cardTheme(d,m.cl);d.id='mo-'+s.id;io.observe(d);en.push({id:s.id,t:s.data().t,ti:m.ti,so:!!m.so,tg:m.tg||[]});const tgs=m.tg||[];d.dataset.tg=tgs.join('|');if(curTag&&!tgs.includes(curTag))d.hidden=true;
     if(m.ti){const h=document.createElement('h3');h.textContent=m.ti;d.appendChild(h)}
-    const dt=document.createElement('div');dt.className='mut';dt.textContent=new Date(s.data().t).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});d.appendChild(dt);
+    const dt=document.createElement('div');dt.className='mut';dt.textContent=new Date(s.data().t).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});d.appendChild(dt);if((m.tg||[]).length){const tw=document.createElement('div');(m.tg).forEach(t=>{const p=document.createElement('span');p.className='tagp';p.textContent=t;tw.appendChild(p)});d.appendChild(tw)}
     if(m.tx){const p=document.createElement('p');p.textContent=m.tx;d.appendChild(p)}
     (m.md||[]).forEach(x=>{const el=document.createElement(x.ty.startsWith('video/')?'video':'img');if(el.tagName==='VIDEO')el.controls=true;d.appendChild(el);load(x,el)});
     if(m.so){

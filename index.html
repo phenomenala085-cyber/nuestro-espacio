@@ -1524,7 +1524,7 @@ async function feed(docs){last=docs;
     const d=document.createElement('div');d.className='card m';cardTheme(d,m.cl);d.id='mo-'+s.id;io.observe(d);en.push({id:s.id,t:s.data().t,ti:m.ti,so:!!m.so,tg:m.tg||[]});mm.push(Object.assign({},m,{id:s.id,t:s.data().t}));const tgs=m.tg||[];d.dataset.tg=tgs.join('|');if(curTag&&!tgs.includes(curTag))d.hidden=true;
     if(m.ti){const h=document.createElement('h3');h.textContent=m.ti;d.appendChild(h)}
     const dt=document.createElement('div');dt.className='mut';dt.textContent=new Date(s.data().t).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});d.appendChild(dt);if((m.tg||[]).length){const tw=document.createElement('div');(m.tg).forEach(t=>{const p=document.createElement('span');p.className='tagp';p.textContent=t;tw.appendChild(p)});d.appendChild(tw)}
-    if(m.tx)d.appendChild(clampBox(m.tx,5,'margin:6px 0 0'))
+    if(m.tx)d.appendChild(clampBox(m.tx,5,'margin:6px 0 0'));
     (m.md||[]).forEach(x=>{const el=document.createElement(x.ty.startsWith('video/')?'video':'img');if(el.tagName==='VIDEO')el.controls=true;d.appendChild(el);load(x,el)});
     if(m.so){
       const bx=document.createElement('div');bx.style.cssText='margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--in)';

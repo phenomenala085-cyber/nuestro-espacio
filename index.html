@@ -1038,6 +1038,20 @@ function lyricsUI(bx,ly,au,opt){
   draw();bx.append(tabs,kar,ctl,nt);
   if(opt.show)upd();
 }
+async function alignLrc(url,ls){
+  const buf=await (await fetch(url)).arrayBuffer(),ac=new (window.AudioContext||window.webkitAudioContext)({sampleRate:11025});
+  const ab=await ac.decodeAudioData(buf);try{ac.close()}catch(e){}
+  const x=ab.getChannelData(0),hop=220,n=Math.min(Math.floor(x.length/hop),9000),e=new Float32Array(n);
+  for(let k=0;k<n;k++){let q=0;for(let i=k*hop+1;i<(k+1)*hop;i++){const d=x[i]-x[i-1];q+=d*d}e[k]=Math.sqrt(q/hop)}
+  const o=new Float32Array(n),cs=new Float64Array(n+1);for(let k=1;k<n;k++)o[k]=Math.max(0,e[k]-e[k-1]);
+  for(let k=0;k<n;k++)cs[k+1]=cs[k]+o[k];
+  for(let k=0;k<n;k++){const a=Math.max(0,k-50),b=Math.min(n,k+50);o[k]=Math.min(6,o[k]/((cs[b]-cs[a])/(b-a)+1e-7))}
+  const T=ls.filter(l=>l.t!=null&&l.t<140).map(l=>l.t);if(T.length<3)return{sh:0,ok:false};
+  const sc=[];let best=-1,bl=0;
+  for(let L=-250;L<=2000;L++){let s2=0;for(const t of T){const i=Math.round(t*50)+L;if(i>1&&i<n-1)s2+=o[i-1]*.5+o[i]+o[i+1]*.5}
+    s2*=1+.3*Math.exp(-Math.pow(L/100,2));sc.push(s2);if(s2>best){best=s2;bl=L}}
+  const mean=sc.reduce((a,b)=>a+b,0)/sc.length;
+  return{sh:bl/50,ok:best>mean*1.8}}
 function syncTool(srcFn,taES,taEN){
   const o=E('div'),w=E('div','wrap');
   o.style.cssText='position:fixed;inset:0;z-index:100;overflow:auto;background:var(--bg);color:var(--tx)';
@@ -1058,6 +1072,26 @@ function syncTool(srcFn,taES,taEN){
   bk.onclick=()=>{if(i>0){i--;draw();au.currentTime=Math.max(0,(stamps[i]||0)-1.5)}};
   dn.onclick=()=>{if(stamps.length)ta().value=lines.map((l,k)=>(stamps[k]!=null?fmt(stamps[k])+' ':'')+l).join('\n');o.remove()};
   Promise.resolve(srcFn()).then(s=>{if(!s){info.textContent='Primero agrega o elige la canción de este momento.';mk.disabled=true;return}au.src=s}).catch(()=>{info.textContent='No se pudo cargar la canción.'});
+
+  const auB=E('button','btn','🔎 Buscar letra y alinear sola'),qi=E('input'),st=E('div','mut');
+  qi.placeholder='Canción y artista (ej: Follow You Imagine Dragons)';qi.style.cssText='width:100%;margin-top:10px';auB.style.cssText='width:100%;margin-top:10px';st.style.marginTop='8px';
+  w.insertBefore(qi,info);w.insertBefore(auB,info);w.insertBefore(st,info);
+  auB.onclick=async()=>{
+    const qq=qi.value.trim();if(!qq){st.textContent='Escribe el nombre de la canción y el artista.';return}
+    auB.disabled=true;st.textContent='Buscando la letra…';
+    try{
+      const r=await fetch('https://lrclib.net/api/search?q='+encodeURIComponent(qq));if(!r.ok)throw 0;
+      const L=(await r.json()).filter(z=>z.syncedLyrics);
+      if(!L.length){st.textContent='No encontré letra con tiempos. Prueba con otro nombre o pégala a mano.';auB.disabled=false;return}
+      const D=au.duration||0;if(D)L.sort((a,b)=>Math.abs((a.duration||0)-D)-Math.abs((b.duration||0)-D));
+      const pk=L[0],ls=lrcP(pk.syncedLyrics);let sh=0,msg;
+      st.textContent='Encontrada: '+pk.trackName+' · '+pk.artistName+'. Alineando con el audio…';
+      try{const z=await alignLrc(au.src,ls);if(z.ok){sh=z.sh;msg='Alineada con el audio (desfase '+sh.toFixed(1)+' s).'}else msg='No pude alinearla con seguridad; úsala y afina con «🎯 Alinear».'}catch(e){msg='No pude analizar el audio; afina con «🎯 Alinear».'}
+      const tg=langOf(ls)==='es'?taES:taEN;tg.value=ls.map(l=>(l.t==null?'':fmt(Math.max(0,l.t+sh))+' ')+l.x).join('\n');
+      sel.value=tg===taES?'es':'en';load();
+      st.textContent=msg+' La letra ya está en el cuadro. Toca «Listo» y guarda.';
+    }catch(e){st.textContent='No pude conectar con el buscador de letras. Revisa el internet o pégala a mano.'}
+    auB.disabled=false};
   load();
 }
 $('psy').onclick=()=>syncTool(()=>$('sfl').files[0]?URL.createObjectURL($('sfl').files[0]):(prof&&prof.sf?mediaUrl(prof.sf):null),$('pls1'),$('pls2'));
@@ -1625,7 +1659,7 @@ function mvEdit(){
 }
 $('mvE').onclick=()=>{if(!MOM.length){$('mvs').textContent='Aún no hay momentos.';return}mvEdit()};
 $('au')._go=async t=>{const a=$('au');a.currentTime=t;a.play().catch(()=>{})};
-const VER='2026.11.10-b';
+const VER='2026.11.10-c';
 let feedLimit=12;
 $('vrs').textContent='Versión '+VER;
 async function checkUpd(show){

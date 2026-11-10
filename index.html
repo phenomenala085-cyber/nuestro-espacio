@@ -950,6 +950,7 @@ const lyOf=(a,b,og)=>{
   if(un(x)&&ok(y)&&x.length===y.length)x=x.map((l,i)=>({t:y[i].t,x:l.x}));
   else if(un(y)&&ok(x)&&x.length===y.length)y=y.map((l,i)=>({t:x[i].t,x:l.x}));
   return x.length||y.length?{es:x,en:y,og:o||(x.length?'es':'en')}:null};
+const kcol=c=>{if(!c)return null;const sat=h=>{if(!HX.test(h||''))return -1;const v=[1,3,5].map(i=>parseInt(h.substr(i,2),16)),M=Math.max(...v);return M?(M-Math.min(...v))/M:0};const a=sat(c.ac),b=sat(c.bg);return Math.max(a,b)>.25?(b>a?c.bg:c.ac):null};
 function lyricsUI(bx,ly,au,opt){
   ly=fixLy(ly);const es=ly.es||[],en=ly.en||[];
   if(!es.length&&!en.length)return;
@@ -960,7 +961,7 @@ function lyricsUI(bx,ly,au,opt){
   const tabs=E('div'),kar=E('div','kar'),box=E('div','kbox'),ctl=E('div'),lab=E('button','lnk');
   tabs.style.cssText='display:flex;gap:6px;margin-top:10px;width:100%;justify-content:center;flex-wrap:wrap';
   ctl.style.cssText='display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;width:100%;font-size:13px';
-  ['kba','kbb','kbc'].forEach(c=>kar.appendChild(E('div','kb '+c)));
+  ['kba','kbb','kbc'].forEach(c=>kar.appendChild(E('div','kb '+c)));if(opt.ac)kar.style.setProperty('--ka',opt.ac);
   kar.appendChild(box);
   const draw=()=>{
     const P=L[og].length?L[og]:L[oth],S=L[og].length?L[oth]:[];
@@ -1601,7 +1602,7 @@ function mvEdit(){
 }
 $('mvE').onclick=()=>{if(!MOM.length){$('mvs').textContent='Aún no hay momentos.';return}mvEdit()};
 $('au')._go=async t=>{const a=$('au');a.currentTime=t;a.play().catch(()=>{})};
-const VER='2026.11.09-a';
+const VER='2026.11.09-b';
 let feedLimit=12;
 $('vrs').textContent='Versión '+VER;
 async function checkUpd(show){
@@ -2040,7 +2041,7 @@ async function feed(docs){last=docs;
       const bx=document.createElement('div');bx.style.cssText='margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--in)';
       const hd=document.createElement('div');hd.style.cssText='display:flex;align-items:center;gap:10px';
       const nm=document.createElement('div');nm.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere';nm.textContent='♫ '+m.so.n;
-      const pl=player(()=>mediaUrl(m.so));hd.append(nm);bx.append(hd,pl);if(m.ly)lyricsUI(bx,m.ly,pl.au,{key:'m'+s.id});d.appendChild(bx);
+      const pl=player(()=>mediaUrl(m.so));hd.append(nm);bx.append(hd,pl);if(m.ly)lyricsUI(bx,m.ly,pl.au,{key:'m'+s.id,ac:kcol(m.cl)});d.appendChild(bx);
     }
     const b=document.createElement('button');b.className='lnk';b.textContent='Eliminar';
     two(b,'Eliminar',()=>{b.disabled=true;db.doc('moments/'+s.id).delete().catch(()=>{b.disabled=false;b.textContent='No se pudo eliminar. Intenta de nuevo'})});

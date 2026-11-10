@@ -947,7 +947,7 @@ $('cq').addEventListener('input',()=>calRender(calE));
   $('nav').appendChild(b);
 });
 document.addEventListener('play',e=>{document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
-const lrcP=t=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>!/^\[[^\]]*\]$/.test(l)||/^\[\d+:\d/.test(l)).map(l=>{const m=l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);return m?{t:+m[1]*60+ +m[2],x:m[3]}:{t:null,x:l}}).filter(l=>l.x);
+const lrcP=t=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>!/^\[[^\]]*\]$/.test(l)||/^\[\d+:\d/.test(l)).map(l=>{const W=/<\d+:\d+(?:[.:,]\d+)?>\s*/g,m=l.match(/^\[(\d+):(\d+)(?:[.:,](\d+))?\]\s*(.*)$/);return m?{t:+m[1]*60+ +m[2]+(m[3]?+('0.'+m[3]):0),x:m[4].replace(/^(\[\d+:\d+(?:[.:,]\d+)?\]\s*)+/,'').replace(W,'').trim()}:{t:null,x:l.replace(W,'')}}).filter(l=>l.x);
 const fmt=s=>{const m=Math.floor(s/60);return '['+String(m).padStart(2,'0')+':'+(s-m*60).toFixed(2).padStart(5,'0')+']'};
 const lrcT=a=>(a||[]).map(l=>(l.t==null?'':fmt(l.t)+' ')+l.x).join('\n');
 const ESW=new Set('de la que el en y los se del las un por con una su para es al lo como más pero sus ya este sí porque esta entre cuando muy sin sobre también hasta hay donde quien desde todo nos todos uno les ni contra otros ese eso ante ellos esto antes qué yo otro él tanto esa mucho nada cual poco ella estar algo mi mis tú te ti tu tus amor corazón siempre nunca contigo quiero eres soy estoy voy tengo cada vida cielo noche dime solo'.split(' '));
@@ -972,11 +972,11 @@ function lyricsUI(bx,ly,au,opt){
   if(!es.length&&!en.length)return;
   opt=opt||{};
   const og=ly.og||guessOg(es,en),oth=og==='en'?'es':'en',L={es,en},NM={es:'Español',en:'English'};
-  const key='lyoff:'+(opt.key||'x');let off=0;try{off=+localStorage.getItem(key)||0}catch(e){}
+  const key='lyoff:'+(opt.key||'x');let off=0,sc=1,alg=0,anc=[];try{off=+localStorage.getItem(key)||0;sc=+localStorage.getItem('lysc:'+(opt.key||'x'))||1}catch(e){}
   let mode=es.length&&en.length?'both':es.length?'es':'en',els=[],lines=[],lastK=-2,raf=0;
-  const tabs=E('div'),kar=E('div','kar'),box=E('div','kbox'),ctl=E('div'),lab=E('button','lnk');
+  const tabs=E('div'),kar=E('div','kar'),box=E('div','kbox'),ctl=E('div'),lab=E('button','lnk'),nt=E('div','mut'),ab=E('button','chip','🎯 Alinear');nt.style.cssText='font-size:13px;text-align:center;margin-top:8px;width:100%';ab.style.cssText='padding:3px 12px;font-size:13px';
   tabs.style.cssText='display:flex;gap:6px;margin-top:10px;width:100%;justify-content:center;flex-wrap:wrap';
-  ctl.style.cssText='display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;width:100%;font-size:13px';
+  ctl.style.cssText='display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;width:100%;font-size:13px;flex-wrap:wrap';
   ['kba','kbb','kbc'].forEach(c=>kar.appendChild(E('div','kb '+c)));if(opt.ac)kar.style.setProperty('--ka',opt.ac);
   kar.appendChild(box);
   const draw=()=>{
@@ -988,13 +988,19 @@ function lyricsUI(bx,ly,au,opt){
       l.w=String(l.x).split(/\s+/).filter(Boolean).map(w=>{const s=E('span','kw',w+' ');m.appendChild(s);return s});
       r.appendChild(m);
       if(l.y)r.appendChild(E('div','ks',l.y));
-      r.onclick=()=>{if(l.t!=null&&au._go)au._go(l.t+off)};
+      r.onclick=()=>{if(l.t==null)return;
+        if(alg){const A=Math.max(0,au.currentTime-.3);anc.push([l.t,A]);if(anc.length>2)anc.shift();const p=anc[0],q=anc[1];
+          if(q&&Math.abs(q[0]-p[0])>15){sc=(q[1]-p[1])/(q[0]-p[0]);off=p[1]-p[0]*sc}else{if(!q)sc=1;off=A-l.t*sc}
+          if(sc<.9||sc>1.1){sc=1;off=A-l.t;anc=[[l.t,A]]}
+          alg=0;ab.textContent='🎯 Alineado ✓';setTimeout(()=>{ab.textContent='🎯 Alinear'},2500);
+          try{localStorage.setItem('lysc:'+(opt.key||'x'),sc)}catch(e){}setOff(off);return}
+        if(au._go)au._go(l.t*sc+off)};
       box.appendChild(r);return r;
     });
-    lastK=-2;
+    lastK=-2;const tm=lines.some(l=>l.t!=null);nt.hidden=tm;ab.hidden=!tm;nt.textContent='⚠ Esta letra no tiene tiempos, por eso no se ilumina. Edita el momento y usa «♫ Sincronizar la letra con la canción».';
   };
   const upd=()=>{
-    const c=au.currentTime-off+.08;let k=-1;
+    const c=(au.currentTime-off)/sc+.08;let k=-1;
     for(let i=0;i<lines.length;i++){const t=lines[i].t;if(t!=null&&t<=c)k=i}
     if(k!==lastK){
       lastK=k;
@@ -1020,8 +1026,8 @@ function lyricsUI(bx,ly,au,opt){
   const setOff=v=>{off=Math.round(v*10)/10;try{localStorage.setItem(key,off)}catch(e){}lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';upd()};
   const mb=E('button','chip','−0.5'),pb=E('button','chip','+0.5');mb.style.cssText=pb.style.cssText='padding:3px 12px;font-size:13px';
   mb.title='La letra sale antes';pb.title='La letra sale después';
-  mb.onclick=()=>setOff(off-.5);pb.onclick=()=>setOff(off+.5);lab.onclick=()=>setOff(0);lab.style.fontSize='13px';
-  ctl.append(mb,lab,pb);lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';
+  mb.onclick=()=>setOff(off-.5);pb.onclick=()=>setOff(off+.5);lab.onclick=()=>{sc=1;anc=[];try{localStorage.setItem('lysc:'+(opt.key||'x'),1)}catch(e){}setOff(0)};ab.onclick=()=>{alg=!alg;ab.textContent=alg?'Toca la línea que suena ahora':'🎯 Alinear'};lab.style.fontSize='13px';
+  ctl.append(mb,lab,pb,ab);lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';
   (au._lyC||[]).forEach(f=>f());au._lyC=[];
   const on=(ev,fn)=>{au.addEventListener(ev,fn);au._lyC.push(()=>au.removeEventListener(ev,fn))};
   on('play',()=>{kar.hidden=tabs.hidden=ctl.hidden=false;if(!raf)raf=requestAnimationFrame(loop)});
@@ -1029,7 +1035,7 @@ function lyricsUI(bx,ly,au,opt){
   on('ended',()=>{cancelAnimationFrame(raf);raf=0});
   on('seeked',upd);
   kar.hidden=tabs.hidden=ctl.hidden=!opt.show;
-  draw();bx.append(tabs,kar,ctl);
+  draw();bx.append(tabs,kar,ctl,nt);
   if(opt.show)upd();
 }
 function syncTool(srcFn,taES,taEN){
@@ -1619,7 +1625,7 @@ function mvEdit(){
 }
 $('mvE').onclick=()=>{if(!MOM.length){$('mvs').textContent='Aún no hay momentos.';return}mvEdit()};
 $('au')._go=async t=>{const a=$('au');a.currentTime=t;a.play().catch(()=>{})};
-const VER='2026.11.10-a';
+const VER='2026.11.10-b';
 let feedLimit=12;
 $('vrs').textContent='Versión '+VER;
 async function checkUpd(show){

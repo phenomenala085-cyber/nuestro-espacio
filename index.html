@@ -1619,7 +1619,7 @@ function mvEdit(){
 }
 $('mvE').onclick=()=>{if(!MOM.length){$('mvs').textContent='Aún no hay momentos.';return}mvEdit()};
 $('au')._go=async t=>{const a=$('au');a.currentTime=t;a.play().catch(()=>{})};
-const VER='2026.11.09-c';
+const VER='2026.11.10-a';
 let feedLimit=12;
 $('vrs').textContent='Versión '+VER;
 async function checkUpd(show){
@@ -2078,6 +2078,69 @@ function start(){setTimeout(()=>checkUpd(false),4000);setTimeout(()=>{try{render
   db.collection('moments').orderBy('t','desc').limit(200).onSnapshot(q=>{if(!HV){HVq=q.docs;setTimeout(()=>{if(!HV){HV=true;if(HVq){const d=HVq;HVq=null;feed(d)}}},9500);return}feed(q.docs)},()=>st('No se pudo leer los momentos.'));
   setInterval(head,60000);
 }
+</script>
+<script>
+/* Extras 2026.11.10: menú con sección activa, mini reproductor, lectura sin internet, tarjeta para compartir, libro de recuerdos */
+(()=>{
+const T=f=>{try{f()}catch(e){console.warn('extra',e)}};
+const $=id=>document.getElementById(id);
+T(()=>{const st=document.createElement('style');st.textContent='#nav .chip.cur{background:var(--ac);color:#fff;border-color:var(--ac)}#mp{position:fixed;left:50%;transform:translate(-50%,140%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;align-items:center;gap:10px;width:max-content;max-width:min(92vw,420px);padding:8px 10px 8px 16px;border-radius:999px;background:var(--card);color:var(--tx);border:1px solid var(--bd);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:transform .35s}#mp.on{transform:translate(-50%,0)}#mp b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}#mp button{border:0;border-radius:50%;width:38px;height:38px;flex:none;background:var(--ac);color:#fff;font-size:16px;cursor:pointer}#book{display:none;font-family:Georgia,serif;color:#111;background:#fff;padding:10px}#book h1{text-align:center;font-size:30px;margin:0 0 4px}#book .bm{break-inside:avoid;margin:0 0 26px}#book h2{font-size:20px;margin:0}#book .d{color:#666;font-size:13px;margin:2px 0 8px}#book p{white-space:pre-wrap;line-height:1.5;font-size:14px;margin:0 0 8px}#book img{max-width:48%;max-height:240px;margin:0 6px 6px 0;border-radius:8px;object-fit:cover}@media print{body>*:not(#book){display:none!important}#book{display:block!important}}';document.head.appendChild(st)});
+/* 1. menú: marca la sección que estás viendo */
+T(()=>{const ids=['bus','pk','qd','cd','mv','rs','calc','gcard','mu','car','vcard','sp','cap','todo','lg','nm','ft','sec'];let tk=0,prev=null;
+ const spy=()=>{tk=0;const chips=[...document.querySelectorAll('#nav .chip')];let best=null;
+  ids.forEach(id=>{const el=$(id);if(!el||el.hidden)return;const r=el.getBoundingClientRect();if(r.top<=150&&r.bottom>150)best=id});
+  chips.forEach((c,i)=>c.classList.toggle('cur',ids[i]===best));
+  if(best!==prev){prev=best;const c=chips[ids.indexOf(best)],n=$('nav');if(c&&n)n.scrollTo({left:c.offsetLeft-n.clientWidth/2+c.offsetWidth/2,behavior:'smooth'})}};
+ addEventListener('scroll',()=>{if(!tk)tk=requestAnimationFrame(spy)},{passive:true})});
+/* 2. mini reproductor flotante */
+T(()=>{const mp=document.createElement('div');mp.id='mp';const nm=document.createElement('b'),bt=document.createElement('button'),up=document.createElement('button');
+ up.textContent='↑';bt.textContent='⏸';mp.append(nm,bt,up);document.body.appendChild(mp);let cur=null,tk=0;
+ const show=()=>{tk=0;if(!cur){mp.classList.remove('on');return}const c=cur.closest('.card'),r=c?c.getBoundingClientRect():{top:0,bottom:1};mp.classList.toggle('on',r.bottom<0||r.top>innerHeight)};
+ document.addEventListener('play',e=>{const a=e.target;if(a.tagName!=='AUDIO')return;cur=a;const c=a.closest('.card'),h=c&&c.querySelector('h3,h2');nm.textContent='♫ '+((h&&h.textContent)||'Reproduciendo');bt.textContent='⏸';show()},true);
+ document.addEventListener('pause',e=>{if(e.target===cur){bt.textContent='▶';show()}},true);
+ document.addEventListener('ended',e=>{if(e.target===cur){cur=null;show()}},true);
+ bt.onclick=()=>{if(cur)cur.paused?cur.play():cur.pause()};
+ up.onclick=()=>{const c=cur&&cur.closest('.card');if(c)c.scrollIntoView({behavior:'smooth',block:'center'})};
+ addEventListener('scroll',()=>{if(!tk)tk=requestAnimationFrame(show)},{passive:true})});
+/* 3. lectura sin internet: guarda lo último que se vio (cifrado) */
+T(()=>{if(!('caches' in window))return;const of=window.fetch.bind(window);
+ window.fetch=async(inp,init)=>{const rq=inp instanceof Request?inp:null,url=rq?rq.url:String(inp),m=((init&&init.method)||(rq&&rq.method)||'GET').toUpperCase();
+  if(m!=='GET'||!/supabase\.co\/(rest\/v1\/docs|storage\/v1\/object\/)/.test(url))return of(inp,init);
+  try{const r=await of(inp,init);if(r.ok){const n=+r.headers.get('content-length')||0;if(/rest\/v1/.test(url)||(n&&n<3e6))caches.open('ne-data').then(c=>c.put(url,r.clone())).catch(()=>{})}return r}
+  catch(e){const c=await caches.open('ne-data'),h=await c.match(url);if(h)return h;throw e}}});
+/* 4. tarjeta para compartir (imagen) en cada momento */
+const lines=(g,t,w,max)=>{const o=[];let l='';String(t).split(/\s+/).forEach(s=>{const k=l?l+' '+s:s;if(g.measureText(k).width>w&&l){o.push(l);l=s}else l=k});if(l)o.push(l);if(o.length>max){o.length=max;o[max-1]=o[max-1].replace(/\s*\S*$/,'')+'…'}return o};
+async function shareCard(card){
+ const m=(typeof MOM!=='undefined'&&MOM.find(x=>'mo-'+x.id===card.id))||{},ac=getComputedStyle(card).getPropertyValue('--ac').trim()||'#1b7fd0';
+ const W=1080,H=1350,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+ g.fillStyle='#0b1a33';g.fillRect(0,0,W,H);const gr=g.createLinearGradient(0,0,W,H);gr.addColorStop(0,ac);gr.addColorStop(1,'#0b1a33');g.globalAlpha=.6;g.fillStyle=gr;g.fillRect(0,0,W,H);g.globalAlpha=1;
+ const img=[...card.querySelectorAll('img')].find(i=>i.complete&&i.naturalWidth&&i.src.startsWith('blob:'));let y=70;
+ if(img){const bw=W-140,bh=620,k=bw/bh;let sw=img.naturalWidth,sh=sw/k;if(sh>img.naturalHeight){sh=img.naturalHeight;sw=sh*k}
+  g.save();g.beginPath();g.roundRect(70,y,bw,bh,36);g.clip();g.drawImage(img,(img.naturalWidth-sw)/2,(img.naturalHeight-sh)/2,sw,sh,70,y,bw,bh);g.restore();y+=bh+50}else y=230;
+ g.textAlign='center';g.fillStyle='#fff';g.font='700 62px Georgia,serif';lines(g,m.ti||'Nuestro momento',W-180,2).forEach(s=>{g.fillText(s,W/2,y+58);y+=74});
+ const d=card.querySelector('.mut');g.font='italic 32px Georgia,serif';g.fillStyle='rgba(255,255,255,.75)';g.fillText(d?d.textContent:'',W/2,y+50);y+=92;
+ g.font='34px Georgia,serif';g.fillStyle='rgba(255,255,255,.92)';lines(g,m.tx||'',W-200,img?4:9).forEach(s=>{g.fillText(s,W/2,y+40);y+=50});
+ g.font='italic 30px Georgia,serif';g.fillStyle='rgba(255,255,255,.7)';g.fillText(((prof&&prof.a)||'')+' ♥ '+((prof&&prof.b)||''),W/2,H-56);
+ const blob=await new Promise(r=>c.toBlob(r,'image/png')),f=new File([blob],'recuerdo.png',{type:'image/png'});
+ if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:m.ti||'Nuestro momento'});
+ else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='recuerdo.png';a.click()}}
+T(()=>{const ft=$('ft');if(!ft)return;let tk=0;
+ const add=()=>{tk=0;ft.querySelectorAll('.card.m:not([data-sh])').forEach(card=>{card.dataset.sh=1;const b=document.createElement('button');b.className='lnk';b.textContent='Compartir';b.style.marginRight='16px';
+  b.onclick=async()=>{const t=b.textContent;b.textContent='Creando…';try{await shareCard(card)}catch(e){if(e&&e.name!=='AbortError')b.textContent='No se pudo'}if(b.textContent==='Creando…')b.textContent=t};card.appendChild(b)})};
+ new MutationObserver(()=>{if(!tk)tk=requestAnimationFrame(add)}).observe(ft,{childList:true,subtree:true})});
+/* 5. libro de recuerdos para imprimir o guardar como PDF */
+T(()=>{const sec=$('sec');if(!sec)return;const b=document.createElement('button');b.className='chip';b.textContent='📖 Libro de recuerdos (PDF)';b.style.margin='6px 6px 0 0';
+ b.onclick=async()=>{const t0=b.textContent;b.disabled=true;b.textContent='Preparando…';
+  try{let bk=$('book');if(bk)bk.remove();bk=document.createElement('div');bk.id='book';
+   const h=document.createElement('h1');h.textContent=((prof&&prof.a)||'')+' & '+((prof&&prof.b)||'');const sub=document.createElement('div');sub.className='d';sub.style.textAlign='center';sub.textContent='Nuestro libro de recuerdos';bk.append(h,sub);const ps=[];
+   for(const m of MOM.slice().sort((a,z)=>a.t-z.t)){const s=document.createElement('div');s.className='bm';const hh=document.createElement('h2');hh.textContent=m.ti||'Momento';const d=document.createElement('div');d.className='d';d.textContent=new Date(m.t).toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});s.append(hh,d);
+    if(m.tx){const p=document.createElement('p');p.textContent=m.tx;s.appendChild(p)}
+    (m.md||[]).filter(x=>x.ty.startsWith('image/')).slice(0,4).forEach(x=>{const i=document.createElement('img');ps.push(new Promise(r=>{i.onload=i.onerror=r}));mediaUrl(x).then(u=>{i.src=u}).catch(()=>{});s.appendChild(i)});bk.appendChild(s)}
+   document.body.appendChild(bk);await Promise.race([Promise.all(ps),new Promise(r=>setTimeout(r,25000))]);window.print()}
+  catch(e){b.textContent='No se pudo preparar'}
+  b.disabled=false;if(b.textContent==='Preparando…')b.textContent=t0};
+ sec.appendChild(b)});
+})();
 </script>
 </body>
 </html>

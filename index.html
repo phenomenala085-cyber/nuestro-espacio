@@ -972,9 +972,9 @@ function lyricsUI(bx,ly,au,opt){
   if(!es.length&&!en.length)return;
   opt=opt||{};
   const og=ly.og||guessOg(es,en),oth=og==='en'?'es':'en',L={es,en},NM={es:'Español',en:'English'};
-  const key='lyoff:'+(opt.key||'x');let off=0,sc=1,alg=0,anc=[];try{off=+localStorage.getItem(key)||0;sc=+localStorage.getItem('lysc:'+(opt.key||'x'))||1}catch(e){}
+  const key='lyoff:'+(opt.key||'x');let off=0,sc=1,alg=0,anc=[],rate=13;try{off=+localStorage.getItem(key)||0;sc=+localStorage.getItem('lysc:'+(opt.key||'x'))||1}catch(e){}
   let mode=es.length&&en.length?'both':es.length?'es':'en',els=[],lines=[],lastK=-2,raf=0;
-  const tabs=E('div'),kar=E('div','kar'),box=E('div','kbox'),ctl=E('div'),lab=E('button','lnk'),nt=E('div','mut'),ab=E('button','chip','🎯 Alinear');nt.style.cssText='font-size:13px;text-align:center;margin-top:8px;width:100%';ab.style.cssText='padding:3px 12px;font-size:13px';
+  const tabs=E('div'),kar=E('div','kar'),box=E('div','kbox'),ctl=E('div'),lab=E('button','lnk'),nt=E('div','mut'),ab=E('button','chip','🎯 Alinear'),ab2=E('button','chip','🧭 Ajustar sola');ab2.style.cssText='padding:3px 12px;font-size:13px';nt.style.cssText='font-size:13px;text-align:center;margin-top:8px;width:100%';ab.style.cssText='padding:3px 12px;font-size:13px';
   tabs.style.cssText='display:flex;gap:6px;margin-top:10px;width:100%;justify-content:center;flex-wrap:wrap';
   ctl.style.cssText='display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;width:100%;font-size:13px;flex-wrap:wrap';
   ['kba','kbb','kbc'].forEach(c=>kar.appendChild(E('div','kb '+c)));if(opt.ac)kar.style.setProperty('--ka',opt.ac);
@@ -997,7 +997,8 @@ function lyricsUI(bx,ly,au,opt){
         if(au._go)au._go(l.t*sc+off)};
       box.appendChild(r);return r;
     });
-    lastK=-2;const tm=lines.some(l=>l.t!=null);nt.hidden=tm;ab.hidden=!tm;nt.textContent='⚠ Esta letra no tiene tiempos, por eso no se ilumina. Edita el momento y usa «♫ Sincronizar la letra con la canción».';
+    lastK=-2;const gs=[];lines.forEach((l,i)=>{const n=lines[i+1];if(l.t!=null&&n&&n.t!=null){const d=n.t-l.t;if(d>.8&&d<9)gs.push(String(l.x).length/d)}});gs.sort((a,b)=>a-b);rate=gs.length?gs[gs.length>>1]:13;
+    const tm=lines.some(l=>l.t!=null);nt.hidden=tm;ab.hidden=ab2.hidden=!tm;nt.textContent='⚠ Esta letra no tiene tiempos, por eso no se ilumina. Edita el momento y usa «♫ Sincronizar la letra con la canción».';
   };
   const upd=()=>{
     const c=(au.currentTime-off)/sc+.08;let k=-1;
@@ -1014,7 +1015,7 @@ function lyricsUI(bx,ly,au,opt){
     }
     if(k>=0){
       const l=lines[k],nt=(lines[k+1]&&lines[k+1].t!=null)?lines[k+1].t:l.t+4;
-      const dur=Math.max(.6,Math.min(nt-l.t-.15,Math.max(1,String(l.x).length/13)));
+      const dur=Math.max(.6,Math.min(nt-l.t-.15,String(l.x).length/Math.max(4,rate*.95)));
       const x=Math.max(0,Math.min(1,(c-l.t)/dur))*l.w.length;
       l.w.forEach((s,j)=>s.style.setProperty('--f',(Math.max(0,Math.min(1,x-j))*100)+'%'));
     }
@@ -1026,8 +1027,13 @@ function lyricsUI(bx,ly,au,opt){
   const setOff=v=>{off=Math.round(v*10)/10;try{localStorage.setItem(key,off)}catch(e){}lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';upd()};
   const mb=E('button','chip','−0.5'),pb=E('button','chip','+0.5');mb.style.cssText=pb.style.cssText='padding:3px 12px;font-size:13px';
   mb.title='La letra sale antes';pb.title='La letra sale después';
-  mb.onclick=()=>setOff(off-.5);pb.onclick=()=>setOff(off+.5);lab.onclick=()=>{sc=1;anc=[];try{localStorage.setItem('lysc:'+(opt.key||'x'),1)}catch(e){}setOff(0)};ab.onclick=()=>{alg=!alg;ab.textContent=alg?'Toca la línea que suena ahora':'🎯 Alinear'};lab.style.fontSize='13px';
-  ctl.append(mb,lab,pb,ab);lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';
+  mb.onclick=()=>setOff(off-.5);pb.onclick=()=>setOff(off+.5);lab.onclick=()=>{sc=1;anc=[];try{localStorage.setItem('lysc:'+(opt.key||'x'),1)}catch(e){}setOff(0)};ab.onclick=()=>{alg=!alg;ab.textContent=alg?'Toca la línea que suena ahora':'🎯 Alinear'};
+  ab2.onclick=async()=>{ab2.disabled=true;const t0=ab2.textContent;ab2.textContent='Analizando…';
+    try{const ls=lines.filter(l=>l.t!=null).map(l=>({t:l.t*sc+off,x:l.x})),z=await alignLrc(au.src,ls);
+      if(z.ok&&Math.abs(z.sh)<20){off=off+z.sh;try{localStorage.setItem(key,off)}catch(e){}setOff(off);ab2.textContent='🧭 Ajustado ('+(z.sh>0?'+':'')+z.sh.toFixed(1)+' s)'}else ab2.textContent='🧭 No estoy seguro'}
+    catch(e){ab2.textContent='🧭 No se pudo'}
+    ab2.disabled=false;setTimeout(()=>{ab2.textContent=t0},3500)};lab.style.fontSize='13px';
+  ctl.append(mb,lab,pb,ab,ab2);lab.textContent='Ajuste de tiempo: '+(off>0?'+':'')+off+' s';
   (au._lyC||[]).forEach(f=>f());au._lyC=[];
   const on=(ev,fn)=>{au.addEventListener(ev,fn);au._lyC.push(()=>au.removeEventListener(ev,fn))};
   on('play',()=>{kar.hidden=tabs.hidden=ctl.hidden=false;if(!raf)raf=requestAnimationFrame(loop)});
@@ -1659,7 +1665,7 @@ function mvEdit(){
 }
 $('mvE').onclick=()=>{if(!MOM.length){$('mvs').textContent='Aún no hay momentos.';return}mvEdit()};
 $('au')._go=async t=>{const a=$('au');a.currentTime=t;a.play().catch(()=>{})};
-const VER='2026.11.10-c';
+const VER='2026.11.10-d';
 let feedLimit=12;
 $('vrs').textContent='Versión '+VER;
 async function checkUpd(show){
@@ -2134,12 +2140,12 @@ T(()=>{const ids=['bus','pk','qd','cd','mv','rs','calc','gcard','mu','car','vcar
  addEventListener('scroll',()=>{if(!tk)tk=requestAnimationFrame(spy)},{passive:true})});
 /* 2. mini reproductor flotante */
 T(()=>{const mp=document.createElement('div');mp.id='mp';const nm=document.createElement('b'),bt=document.createElement('button'),up=document.createElement('button');
- up.textContent='↑';bt.textContent='⏸';mp.append(nm,bt,up);document.body.appendChild(mp);let cur=null,tk=0;
+ up.textContent='↑';bt.textContent='⏸';const xb=document.createElement('button');xb.textContent='✕';xb.className='mx';xb.title='Cerrar';mp.append(nm,bt,up,xb);document.body.appendChild(mp);let cur=null,tk=0;
  const show=()=>{tk=0;if(!cur){mp.classList.remove('on');return}const c=cur.closest('.card'),r=c?c.getBoundingClientRect():{top:0,bottom:1};mp.classList.toggle('on',r.bottom<0||r.top>innerHeight)};
  document.addEventListener('play',e=>{const a=e.target;if(a.tagName!=='AUDIO')return;cur=a;const c=a.closest('.card'),h=c&&c.querySelector('h3,h2');nm.textContent='♫ '+((h&&h.textContent)||'Reproduciendo');bt.textContent='⏸';show()},true);
  document.addEventListener('pause',e=>{if(e.target===cur){bt.textContent='▶';show()}},true);
  document.addEventListener('ended',e=>{if(e.target===cur){cur=null;show()}},true);
- bt.onclick=()=>{if(cur)cur.paused?cur.play():cur.pause()};
+ bt.onclick=()=>{if(cur)cur.paused?cur.play():cur.pause()};xb.onclick=()=>{cur=null;show()};
  up.onclick=()=>{const c=cur&&cur.closest('.card');if(c)c.scrollIntoView({behavior:'smooth',block:'center'})};
  addEventListener('scroll',()=>{if(!tk)tk=requestAnimationFrame(show)},{passive:true})});
 /* 3. lectura sin internet: guarda lo último que se vio (cifrado) */
@@ -2180,6 +2186,14 @@ T(()=>{const sec=$('sec');if(!sec)return;const b=document.createElement('button'
   catch(e){b.textContent='No se pudo preparar'}
   b.disabled=false;if(b.textContent==='Preparando…')b.textContent=t0};
  sec.appendChild(b)});
+})();
+</script>
+<script>
+(()=>{const T=f=>{try{f()}catch(e){console.warn('extra2',e)}};
+T(()=>{const st=document.createElement('style');st.textContent='#upd{z-index:70!important}#upd:not([hidden])~#mp{bottom:calc(var(--uh,80px) + 28px + env(safe-area-inset-bottom,0px))}#mp .mx{background:transparent;color:var(--tx);border:1px solid var(--bd);font-size:14px}';document.head.appendChild(st)});
+T(()=>{const u=document.getElementById('upd'),g=document.getElementById('updB');if(u&&g){const b=document.createElement('button');b.className='lnk';b.textContent='Más tarde';b.onclick=()=>{u.hidden=true};u.insertBefore(b,g);const sh=()=>document.documentElement.style.setProperty('--uh',u.offsetHeight+'px');sh();if(window.ResizeObserver)new ResizeObserver(sh).observe(u)}});
+T(()=>{const v=document.getElementById('vrs');if(!v)return;const b=document.createElement('button');b.className='btn';b.textContent='⬇ Actualizar ahora';b.hidden=true;b.style.margin='8px 0';v.after(b);b.onclick=()=>goNew();
+ const c=()=>{b.hidden=!/^Hay una versión nueva/.test(v.textContent)};new MutationObserver(c).observe(v,{childList:true,characterData:true,subtree:true});c()});
 })();
 </script>
 </body>
